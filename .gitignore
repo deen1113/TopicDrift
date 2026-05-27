@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Node / Bun
+node_modules/
+bun.lockb
+.pnp.*
+dist/
+.vite/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Data (raw downloads, large artifacts)
+data/raw/
+data/processed/
+*.parquet
+*.csv.gz
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs
+*.log
