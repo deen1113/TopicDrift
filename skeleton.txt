@@ -1,0 +1,23 @@
+topic-drift/
+├── config/
+│   ├── venues.yaml        # venue slugs and date ranges
+│   └── stopwords.txt      # domain-specific stopwords
+├── data/
+│   ├── raw/               # cached API responses — never edited
+│   ├── interim/           # cleaned papers.parquet per venue
+│   └── processed/         # TF-IDF matrices, cluster assignments
+├── src/
+│   ├── ingest.py          # fetch from DBLP + Semantic Scholar
+│   ├── clean.py           # deduplicate, normalise, output parquet
+│   ├── analyse.py         # TF-IDF, NMF clustering
+│   ├── visualise.py       # all figure generation
+│   └── utils.py           # shared helpers
+├── notebooks/
+│   └── exploration.ipynb  # scratch work — never part of pipeline
+├── outputs/
+│   ├── figures/           # PNG and PDF exports
+│   └── tables/            # CSV exports for report tables
+├── paper/                 # report draft
+├── run_all.sh             # runs everything end to end
+├── requirements.txt
+└── README.md
