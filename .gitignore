@@ -16,10 +16,10 @@ build/
 
 # Node / Bun
 node_modules/
-bun.lockb
 .pnp.*
 dist/
 .vite/
+# Note: commit bun.lock (text format, v1.2+) — do NOT ignore it.
 
 # Env
 .env
