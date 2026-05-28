@@ -1,9 +1,11 @@
-"""Enrich the interim papers parquet with OpenAlex abstracts + concepts.
+"""
+enrich_openalex.py — Enrich the interim DBLP parquet with OpenAlex data.
 
-Reads:  data/interim/<venue>_papers.parquet  (from src.clean)
-Writes: data/interim/<venue>_papers_enriched.parquet
+Reads:  data/interim/<venue>_dblp.parquet      (from src/clean.py)
+Writes: data/interim/<venue>_enriched.parquet
 
 Adds columns:
+    venue           str           venue key (e.g. "icse")
     abstract        str | None    reconstructed from OpenAlex inverted index
     has_abstract    bool          recomputed from `abstract`
     text            str           normalized title + abstract (TF-IDF ready)
@@ -16,9 +18,6 @@ OpenAlex is free; passing `mailto` puts us in the polite pool. Batches DOIs
 50 at a time via the OR-filter. Raw responses cached under data/raw/openalex/
 so re-runs cost nothing.
 """
-from __future__ import annotations
-
-import argparse
 import hashlib
 import json
 import re
@@ -29,11 +28,11 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from src.utils import DATA_INTERIM, DATA_RAW, ensure_dirs, load_venues, setup_logging
+INTERIM_DIR = Path("data/interim")
+RAW_DIR = Path("data/raw")
+OA_CACHE = RAW_DIR / "openalex"
+OA_CACHE.mkdir(parents=True, exist_ok=True)
 
-log = setup_logging("enrich_openalex")
-
-OA_CACHE = DATA_RAW / "openalex"
 OPENALEX_URL = "https://api.openalex.org/works"
 MAILTO = "maaseide.m@northeastern.edu"
 BATCH_SIZE = 50
@@ -47,7 +46,7 @@ WS = re.compile(r"\s+")
 
 
 def normalize(text: str | None) -> str:
-    """Mirror src.clean.normalize so `text` column is consistent."""
+    """Lowercase, drop LaTeX/HTML, collapse whitespace. Empty string for None."""
     if not text:
         return ""
     s = unicodedata.normalize("NFKC", text)
@@ -71,7 +70,6 @@ def _batch_cache_path(dois: list[str]) -> Path:
 
 
 def _fetch_batch(dois: list[str]) -> list[dict]:
-    OA_CACHE.mkdir(parents=True, exist_ok=True)
     cache = _batch_cache_path(dois)
     if cache.exists():
         return json.loads(cache.read_text()).get("results", [])
@@ -86,13 +84,13 @@ def _fetch_batch(dois: list[str]) -> list[dict]:
         r = requests.get(OPENALEX_URL, params=params, timeout=30)
         if r.status_code == 429:
             wait = 2 ** attempt * 3
-            log.warning("OpenAlex rate-limited; sleeping %ds", wait)
+            print(f"  OpenAlex rate-limited; sleeping {wait}s")
             time.sleep(wait)
             continue
         r.raise_for_status()
         break
     else:
-        log.error("OpenAlex gave up after retries (batch of %d)", len(dois))
+        print(f"  OpenAlex gave up after retries (batch of {len(dois)})")
         return []
 
     payload = r.json()
@@ -121,29 +119,28 @@ def parse_work(work: dict) -> dict:
 def fetch_for_dois(dois: list[str]) -> dict[str, dict]:
     uniq = sorted({d for d in dois if d})
     n_batches = (len(uniq) + BATCH_SIZE - 1) // BATCH_SIZE
-    log.info("%d unique DOIs in %d batches of %d", len(uniq), n_batches, BATCH_SIZE)
+    print(f"  {len(uniq)} unique DOIs in {n_batches} batches of {BATCH_SIZE}")
 
     out: dict[str, dict] = {}
     for i in range(0, len(uniq), BATCH_SIZE):
         batch = uniq[i : i + BATCH_SIZE]
         if (i // BATCH_SIZE) % 20 == 0:
-            log.info("batch %d/%d", i // BATCH_SIZE + 1, n_batches)
+            print(f"  batch {i // BATCH_SIZE + 1}/{n_batches}")
         for work in _fetch_batch(batch):
             parsed = parse_work(work)
             if parsed["doi"]:
                 out[parsed["doi"]] = parsed
-    log.info("OpenAlex returned metadata for %d / %d DOIs", len(out), len(uniq))
+    print(f"  OpenAlex matched {len(out)} / {len(uniq)} DOIs")
     return out
 
 
 def enrich_venue(venue_key: str) -> None:
-    ensure_dirs()
-    src = DATA_INTERIM / f"{venue_key}_papers.parquet"
+    src = INTERIM_DIR / f"{venue_key}_dblp.parquet"
     if not src.exists():
-        raise SystemExit(f"Not found: {src}. Run `python -m src.clean --venue {venue_key}` first.")
+        raise SystemExit(f"Not found: {src}. Run `python src/clean.py` first.")
 
     df = pd.read_parquet(src)
-    log.info("read %s (%d rows)", src, len(df))
+    print(f"Loaded {len(df)} rows from {src}")
 
     enriched = fetch_for_dois(df["doi"].dropna().tolist())
     empty = {"abstract": None, "oa_concepts": [], "citation_count": None,
@@ -156,37 +153,16 @@ def enrich_venue(venue_key: str) -> None:
     ]
     add = pd.DataFrame(rows)
 
-    # Drop any columns that already exist (abstract/has_abstract were stubbed in clean.py).
-    for col in add.columns:
-        if col in df.columns:
-            df = df.drop(columns=[col])
     out = pd.concat([df.reset_index(drop=True), add.reset_index(drop=True)], axis=1)
-
-    # Recompute downstream-derived columns.
+    out["venue"] = venue_key
     out["has_abstract"] = out["abstract"].fillna("").str.len() > 0
     out["text"] = (out["title"].map(normalize) + " " + out["abstract"].map(normalize)).str.strip()
 
-    dest = DATA_INTERIM / f"{venue_key}_papers_enriched.parquet"
+    dest = INTERIM_DIR / f"{venue_key}_enriched.parquet"
     out.to_parquet(dest, index=False)
-    log.info("wrote %s (%d rows)", dest, len(out))
-
     pct = 100 * out["has_abstract"].mean()
-    log.info("abstract coverage: %d / %d (%.1f%%)",
-             int(out["has_abstract"].sum()), len(out), pct)
-
-
-def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--venue")
-    p.add_argument("--all", action="store_true")
-    args = p.parse_args()
-    venues = list(load_venues())
-    targets = venues if args.all else [args.venue] if args.venue else []
-    if not targets:
-        p.error("pass --venue <key> or --all")
-    for v in targets:
-        enrich_venue(v)
+    print(f"Wrote {dest} ({len(out)} rows, abstract coverage {pct:.1f}%)")
 
 
 if __name__ == "__main__":
-    main()
+    enrich_venue("icse")
