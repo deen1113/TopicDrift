@@ -22,7 +22,7 @@ def fetch_venue_year(slug, year):
 
     url = "https://dblp.org/search/publ/api"
     params = {
-        "q": f"venue:{slug} year:{year}",
+        "q": f"{slug} {year}",
         "format": "json",
         "h": 500
     }
