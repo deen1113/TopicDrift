@@ -1,5 +1,5 @@
 """
-clean.py — Turn cached DBLP JSON into a tidy parquet file.
+clean.py — Turn cached DBLP JSON into a tidy parquet file /interim.
 
 Steps:
 1. Parse raw DBLP JSON batches
