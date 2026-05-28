@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+from collections import defaultdict
 from pathlib import Path
 import yaml
 
@@ -23,24 +24,10 @@ def fetch_all_papers(venue_key):
     offset = 0
 
     while True:
-        cache_path = RAW_DIR / f"{venue_key}_dblp_f{offset}.json"
-
-        if cache_path.exists():
-            print(f"  [cache] {venue_key} offset={offset}")
-            data = json.loads(cache_path.read_text())
-        else:
-            params = {
-                "q": f"stream:streams/{slug}:",
-                "format": "json",
-                "h": batch_size,
-                "f": offset
-            }
-            response = requests.get("https://dblp.org/search/publ/api", params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-
-            cache_path.write_text(json.dumps(data, indent=2))
-            time.sleep(1)
+        url = f"https://dblp.org/search/publ/api?q=stream:streams/{slug}:&format=json&h={batch_size}&f={offset}"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
 
         hits = data.get("result", {}).get("hits", {}).get("hit", [])
         total = int(data.get("result", {}).get("hits", {}).get("@total", 0))
@@ -53,8 +40,19 @@ def fetch_all_papers(venue_key):
             break
 
         offset += batch_size
+        time.sleep(1)
 
-    print(f"\nDone. {len(all_hits)} papers fetched for {venue_key}")
+    by_year = defaultdict(list)
+    for hit in all_hits:
+        year = hit.get("info", {}).get("year", "unknown")
+        by_year[year].append(hit)
+
+    for year, hits in sorted(by_year.items()):
+        path = RAW_DIR / f"{venue_key}_{year}.json"
+        path.write_text(json.dumps(hits, indent=2))
+        print(f"  [write] {path.name} — {len(hits)} papers")
+
+    print(f"\nDone. {len(all_hits)} papers fetched for {venue_key}, {len(by_year)} year files written")
     return all_hits
 
 
