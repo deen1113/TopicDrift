@@ -62,6 +62,14 @@ def filter_main_track(df: pd.DataFrame) -> pd.DataFrame:
     return df[keep].reset_index(drop=True)
 
 
+def filter_proceedings(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop proceedings-volume entries (IEEE /xpl/ links are not individual papers)."""
+    is_proceedings = df["ee"].fillna("").str.contains("ieeexplore.ieee.org/xpl/", regex=False)
+    dropped = is_proceedings.sum()
+    print(f"Filtered {dropped} proceedings-volume entries")
+    return df[~is_proceedings].reset_index(drop=True)
+
+
 def deduplicate(df: pd.DataFrame) -> pd.DataFrame:
     """Deduplicate by dblp_key, then by title+year. Warn on any duplicates found."""
     before = len(df)
@@ -108,6 +116,7 @@ def clean_venue(venue_key: str) -> None:
     hits = load_raw_dblp(venue_key)
     df = parse_hits(hits)
     df = filter_main_track(df)
+    df = filter_proceedings(df)
     df = deduplicate(df)
     df = flag_missing(df)
     df = df.dropna(subset=["year"])
