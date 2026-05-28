@@ -1,8 +1,12 @@
-"""Turn cached DBLP + Semantic Scholar JSON into one tidy parquet per venue.
+"""Turn cached DBLP JSON into one tidy parquet per venue.
 
 Output: data/interim/<venue>_papers.parquet with columns
     paper_id, title, year, venue, doi, dblp_key, has_abstract,
     abstract, text  (= normalized title + abstract, ready for TF-IDF)
+
+Abstracts are stubbed out here (set to None). They get populated by
+`python -m src.enrich_openalex --venue <key>`, which reads this parquet
+and writes data/interim/<venue>_papers_enriched.parquet.
 """
 from __future__ import annotations
 
@@ -14,7 +18,7 @@ import unicodedata
 import pandas as pd
 
 from src.utils import (DATA_INTERIM, DATA_RAW, ensure_dirs, load_venues,
-                       setup_logging, slug_to_filename)
+                       setup_logging)
 
 log = setup_logging("clean")
 
@@ -35,40 +39,41 @@ def normalize(text: str | None) -> str:
 
 
 def load_raw(venue_key: str) -> pd.DataFrame:
-    """Read every cached DBLP file for the venue and return one row per paper."""
+    """Read every cached DBLP file for the venue and return one row per paper.
+
+    `ingest.py` writes one file per year as a bare list of DBLP hits
+    (`data/raw/<venue_key>_<year>.json`). We also accept the older
+    `{"result": {"hits": {"hit": [...]}}}` envelope for back-compat.
+    """
     cfg = load_venues()[venue_key]
     rows = []
-    for slug in cfg["dblp_slugs"]:
-        for year in range(cfg["start_year"], cfg["end_year"] + 1):
-            cache = DATA_RAW / f"{slug_to_filename(slug)}_{year}.json"
-            if not cache.exists():
-                continue
-            blob = json.loads(cache.read_text())
-            for hit in blob.get("result", {}).get("hits", {}).get("hit", []):
-                info = hit.get("info") or {}
-                doi = (info.get("doi") or "").strip().lower() or None
-                rows.append({
-                    "paper_id": hit.get("@id") or doi or info.get("key"),
-                    "title": info.get("title") or "",
-                    "year": int(info["year"]) if info.get("year") else None,
-                    "venue": venue_key,
-                    "doi": doi,
-                    "dblp_key": info.get("key") or "",
-                })
+    for year in range(cfg["start_year"], cfg["end_year"] + 1):
+        cache = DATA_RAW / f"{venue_key}_{year}.json"
+        if not cache.exists():
+            continue
+        blob = json.loads(cache.read_text())
+        hits = blob if isinstance(blob, list) else (
+            blob.get("result", {}).get("hits", {}).get("hit", []))
+        for hit in hits:
+            info = hit.get("info") or {}
+            doi = (info.get("doi") or "").strip().lower() or None
+            rows.append({
+                "paper_id": hit.get("@id") or doi or info.get("key"),
+                "title": info.get("title") or "",
+                "year": int(info["year"]) if info.get("year") else None,
+                "venue": venue_key,
+                "doi": doi,
+                "dblp_key": info.get("key") or "",
+            })
     log.info("%s: %d raw rows", venue_key, len(rows))
     return pd.DataFrame(rows)
 
 
-def attach_abstracts(df: pd.DataFrame, venue_key: str) -> pd.DataFrame:
-    """Merge Semantic Scholar abstracts by DOI; missing DOIs simply get None."""
-    cache = DATA_RAW / f"s2_{venue_key}.json"
-    s2 = json.loads(cache.read_text()) if cache.exists() else {}
+def stub_abstracts(df: pd.DataFrame) -> pd.DataFrame:
+    """Add empty abstract / has_abstract columns. Populated later by enrich_openalex."""
     df = df.copy()
-    df["abstract"] = df["doi"].map(lambda d: (s2.get(d) or {}).get("abstract") if d else None)
-    df["has_abstract"] = df["abstract"].fillna("").str.len() > 0
-    pct = 100 * df["has_abstract"].mean() if len(df) else 0
-    log.info("%s: %d/%d papers have abstracts (%.1f%%)",
-             venue_key, int(df["has_abstract"].sum()), len(df), pct)
+    df["abstract"] = None
+    df["has_abstract"] = False
     return df
 
 
@@ -104,7 +109,7 @@ def clean_venue(venue_key: str) -> None:
     ensure_dirs()
     df = load_raw(venue_key)
     df = filter_workshops(df)
-    df = attach_abstracts(df, venue_key)
+    df = stub_abstracts(df)
     df = dedupe_titles(df)
     df = df.dropna(subset=["year"]).copy()
     df["year"] = df["year"].astype(int)
