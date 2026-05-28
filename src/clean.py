@@ -79,10 +79,17 @@ def deduplicate(df: pd.DataFrame) -> pd.DataFrame:
         print(f"  WARNING: {len(title_dupes)} rows share a duplicate title+year:")
         for (title, year), group in title_dupes.groupby(["title", "year"]):
             print(f"    [{year}] {title}: dblp_keys={list(group['dblp_key'])}")
+        dupes_path = INTERIM_DIR / "icse_duplicates.csv"
+        title_dupes.sort_values(["year", "title"]).to_csv(dupes_path, index=False)
+        print(f"  Wrote {len(title_dupes)} duplicate rows to {dupes_path}")
 
-    df = df.drop_duplicates(
-        subset=["title", "year"], keep="first"
-    ).reset_index(drop=True)
+    # Prefer rows with DOI, then with more authors, before dropping duplicates.
+    df = df.assign(
+        _has_doi=df["doi"].notna(),
+        _n_authors=df["authors"].map(len),
+    ).sort_values(["_has_doi", "_n_authors"], ascending=[False, False])
+    df = df.drop_duplicates(subset=["title", "year"], keep="first")
+    df = df.drop(columns=["_has_doi", "_n_authors"]).reset_index(drop=True)
 
     print(f"Deduplicated: {before} -> {len(df)} papers")
     return df
