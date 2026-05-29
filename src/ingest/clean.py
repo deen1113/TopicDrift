@@ -4,12 +4,14 @@ clean.py — Turn cached DBLP JSON into a tidy parquet file /interim.
 Steps:
 1. Parse raw DBLP JSON batches
 2. Flatten each hit into a row
-3. Filter to main track papers only
-4. Deduplicate
-5. Flag missing DOIs
-6. Output data/interim/icse_dblp.parquet
+3. Keep only papers via the DBLP type field (drops Editorship proceedings volumes)
+4. Filter to main track papers only
+5. Deduplicate
+6. Flag missing DOIs
+7. Output data/interim/icse_dblp.parquet
 """
 
+import html
 import json
 import pandas as pd
 from pathlib import Path
@@ -49,7 +51,8 @@ def parse_hits(hits: list) -> pd.DataFrame:
         rows.append({
             "dblp_id":  hit.get("@id"),
             "dblp_key": info.get("key"),
-            "title":    info.get("title", "").rstrip("."),
+            "type":     info.get("type"),
+            "title":    html.unescape(info.get("title", "")).rstrip("."),
             "year":     int(info["year"]) if info.get("year") else None,
             "doi":      info.get("doi", "").strip().lower() or None,
             "authors":  authors,
@@ -68,19 +71,15 @@ def filter_main_track(df: pd.DataFrame) -> pd.DataFrame:
     return df[keep].reset_index(drop=True)
 
 
-def filter_proceedings(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop proceedings-volume entries.
-
-    Catches both IEEE /xpl/ links and titles like "17th International ..." /
-    "1st International Workshop ..." which are volume entries, not papers.
-    """
-    by_url = df["ee"].fillna("").str.contains("ieeexplore.ieee.org/xpl/", regex=False)
-    by_title = df["title"].fillna("").str.match(r"\d+(st|nd|rd|th) International", case=False)
-    is_proceedings = by_url | by_title
-    dropped = is_proceedings.sum()
-    print(f"Filtered {dropped} proceedings-volume entries "
-          f"({by_url.sum()} by URL, {by_title.sum()} by title)")
-    return df[~is_proceedings].reset_index(drop=True)
+def filter_to_papers(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only DBLP 'Conference and Workshop Papers'; drop 'Editorship'
+    proceedings volumes. DBLP's type field is the authoritative signal."""
+    keep = df["type"] == "Conference and Workshop Papers"
+    dropped = (~keep).sum()
+    print(f"Dropped {dropped} non-paper records (by DBLP type)")
+    for title in df.loc[~keep, "title"].head(10):
+        print(f"    {title[:80]}")
+    return df[keep].reset_index(drop=True)
 
 
 def deduplicate(df: pd.DataFrame) -> pd.DataFrame:
@@ -128,8 +127,8 @@ def flag_missing(df: pd.DataFrame) -> pd.DataFrame:
 def clean_venue(venue_key: str) -> None:
     hits = load_raw_dblp(venue_key)
     df = parse_hits(hits)
+    df = filter_to_papers(df)
     df = filter_main_track(df)
-    df = filter_proceedings(df)
     df = deduplicate(df)
     df = flag_missing(df)
     df = df.dropna(subset=["year"])
