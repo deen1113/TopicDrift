@@ -1,9 +1,10 @@
 PYTHON ?= python
 
-.PHONY: all ingest clean enrich report clean-cache
+.PHONY: all ingest clean enrich report topics clean-cache
 
 all: ingest clean enrich report
 
+# ingest pipeline (data team)
 ingest:
 	$(PYTHON) src/ingest/ingest.py
 
@@ -15,6 +16,10 @@ enrich:
 
 report:
 	$(PYTHON) src/ingest/report.py
+
+# analysis (analysis team)
+topics:
+	$(PYTHON) src/analysis/topics.py
 
 clean-cache:
 	rm -rf data outputs
