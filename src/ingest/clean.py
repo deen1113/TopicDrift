@@ -17,6 +17,8 @@ from pathlib import Path
 RAW_DIR = Path("data/raw")
 INTERIM_DIR = Path("data/interim")
 INTERIM_DIR.mkdir(parents=True, exist_ok=True)
+# No conferences in the data
+MAIN_TRACK_VENUES = {"ICSE"}
 
 
 def load_raw_dblp(venue_key: str) -> list:
@@ -40,6 +42,10 @@ def parse_hits(hits: list) -> pd.DataFrame:
             authors_raw = [authors_raw]
         authors = [a.get("text", "") for a in authors_raw]
 
+        venue = info.get("venue")
+        if isinstance(venue, list):
+            venue = venue[0] if venue else None
+
         rows.append({
             "dblp_id":  hit.get("@id"),
             "dblp_key": info.get("key"),
@@ -48,17 +54,17 @@ def parse_hits(hits: list) -> pd.DataFrame:
             "doi":      info.get("doi", "").strip().lower() or None,
             "authors":  authors,
             "url":      info.get("url"),
-            "ee":        info.get("ee"),
+            "ee":       info.get("ee"),
+            "venue":    venue,
         })
     return pd.DataFrame(rows)
 
 
 def filter_main_track(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep only main track papers. Workshop/companion keys end in W or C."""
-    sub = df["dblp_key"].str.split("/").str[-2].fillna("")
-    keep = ~sub.str.endswith(("W", "C"))
+    """Keep only ICSE-proper (main research track). See MAIN_TRACK_VENUES."""
+    keep = df["venue"].isin(MAIN_TRACK_VENUES)
     dropped = (~keep).sum()
-    print(f"Filtered {dropped} workshop/companion papers")
+    print(f"Filtered {dropped} non-main-track papers, kept {keep.sum()}")
     return df[keep].reset_index(drop=True)
 
 
