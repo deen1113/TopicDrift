@@ -63,10 +63,17 @@ def filter_main_track(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def filter_proceedings(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop proceedings-volume entries (IEEE /xpl/ links are not individual papers)."""
-    is_proceedings = df["ee"].fillna("").str.contains("ieeexplore.ieee.org/xpl/", regex=False)
+    """Drop proceedings-volume entries.
+
+    Catches both IEEE /xpl/ links and titles like "17th International ..." /
+    "1st International Workshop ..." which are volume entries, not papers.
+    """
+    by_url = df["ee"].fillna("").str.contains("ieeexplore.ieee.org/xpl/", regex=False)
+    by_title = df["title"].fillna("").str.match(r"\d+(st|nd|rd|th) International", case=False)
+    is_proceedings = by_url | by_title
     dropped = is_proceedings.sum()
-    print(f"Filtered {dropped} proceedings-volume entries")
+    print(f"Filtered {dropped} proceedings-volume entries "
+          f"({by_url.sum()} by URL, {by_title.sum()} by title)")
     return df[~is_proceedings].reset_index(drop=True)
 
 
