@@ -20,9 +20,9 @@ Per-document fit score is stored in icse_paper_topics.parquet as
 `topic_probability` — the model's max-class probability for that paper.
 
 Writes:
-  data/gold/icse_topics.parquet
-  data/gold/icse_paper_topics.parquet  (now with topic_probability)
-  data/gold/icse_topics_over_time.parquet
+  data/processed/icse_topics.parquet
+  data/processed/icse_paper_topics.parquet  (now with topic_probability)
+  data/processed/icse_topics_over_time.parquet
   outputs/tables/topic_sanity_events.csv
   outputs/tables/topic_top_papers.csv
   outputs/tables/topic_outlier_timeline.csv
@@ -43,13 +43,12 @@ from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import adjusted_rand_score
 from umap import UMAP
-
 INTERIM_DIR = Path("data/interim")
-GOLD_DIR = Path("data/gold")
+PROCESSED_DIR = Path("data/processed")
 OUTPUTS_TABLES = Path("outputs/tables")
 CONFIG_DIR = Path("config")
 LLM_CACHE = Path("data/raw/llm_topic_ratings")
-GOLD_DIR.mkdir(parents=True, exist_ok=True)
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_TABLES.mkdir(parents=True, exist_ok=True)
 LLM_CACHE.mkdir(parents=True, exist_ok=True)
 
@@ -141,7 +140,7 @@ def _save_artifacts(model, df, topics, probabilities, timestamps):
         "Name": "label", "Representation": "top_words",
     })
     keep = [c for c in ["topic_id", "size", "label", "top_words"] if c in info.columns]
-    info[keep].to_parquet(GOLD_DIR / "icse_topics.parquet", index=False)
+    info[keep].to_parquet(PROCESSED_DIR / "icse_topics.parquet", index=False)
     print(f"  wrote icse_topics.parquet ({len(info)} rows)")
 
     pt = pd.DataFrame({
@@ -150,7 +149,7 @@ def _save_artifacts(model, df, topics, probabilities, timestamps):
         "topic_id": topics,
         "topic_probability": probabilities.round(4),
     })
-    pt.to_parquet(GOLD_DIR / "icse_paper_topics.parquet", index=False)
+    pt.to_parquet(PROCESSED_DIR / "icse_paper_topics.parquet", index=False)
     print(f"  wrote icse_paper_topics.parquet ({len(pt)} rows)")
 
     tot = model.topics_over_time(df["text"].tolist(), timestamps, nr_bins=None).rename(columns={
@@ -159,7 +158,7 @@ def _save_artifacts(model, df, topics, probabilities, timestamps):
     })
     bucket_totals = tot.groupby("year_bucket")["freq"].transform("sum")
     tot["share"] = tot["freq"] / bucket_totals
-    tot.to_parquet(GOLD_DIR / "icse_topics_over_time.parquet", index=False)
+    tot.to_parquet(PROCESSED_DIR / "icse_topics_over_time.parquet", index=False)
     print(f"  wrote icse_topics_over_time.parquet ({len(tot)} rows)")
 
 
@@ -407,9 +406,9 @@ def fit():
     probabilities = _per_doc_probabilities(model, docs)
     _save_artifacts(model, df, topics, probabilities, timestamps)
 
-    topics_df = pd.read_parquet(GOLD_DIR / "icse_topics.parquet")
-    pt = pd.read_parquet(GOLD_DIR / "icse_paper_topics.parquet")
-    tot = pd.read_parquet(GOLD_DIR / "icse_topics_over_time.parquet")
+    topics_df = pd.read_parquet(PROCESSED_DIR / "icse_topics.parquet")
+    pt = pd.read_parquet(PROCESSED_DIR / "icse_paper_topics.parquet")
+    tot = pd.read_parquet(PROCESSED_DIR / "icse_topics_over_time.parquet")
 
     # Validation pass 1: sanity events
     se = _sanity_events(topics_df, tot)
