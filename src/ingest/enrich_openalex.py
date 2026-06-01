@@ -37,7 +37,7 @@ OA_CACHE = Path("data/raw/openalex")
 OA_CACHE.mkdir(parents=True, exist_ok=True)
 
 OPENALEX_URL = "https://api.openalex.org/works"
-MAILTO = "oberwager.l@northeastern.edu"
+MAILTO = "maaseide.m@northeastern.edu"
 MAX_URL_LEN = 4080  # OpenAlex rejects above 4094 bytes
 MAX_DOIS = 100  # OpenAlex doi filter value cap
 MAX_REQUESTS_PER_SEC = 10
@@ -51,6 +51,10 @@ SELECT_FIELDS = (
 LATEX = re.compile(r"\$[^$]*\$")
 HTML = re.compile(r"<[^>]+>")
 WS = re.compile(r"\s+")
+
+# DBLP often prepends "On"/"On a"/"On the" to titles that OpenAlex stores
+# without. Strip these (and bare articles) so the loose matcher can equate them.
+LEADING_ARTICLES = re.compile(r"^(?:on\s+(?:a\s+|an\s+|the\s+)?|a\s+|an\s+|the\s+)+")
 
 _thread_local = threading.local()
 
@@ -153,8 +157,10 @@ def _strict_title_match(title: str, year: int, work: dict) -> bool:
 
 
 def _loose_key(text: str | None) -> str:
-    """normalize() then drop all punctuation, so only word tokens remain."""
-    return WS.sub(" ", re.sub(r"[^a-z0-9 ]", " ", normalize(text))).strip()
+    """normalize(), strip punctuation, then strip leading articles (DBLP-style
+    "On"/"On the" prefixes) so trivially-different titles compare equal."""
+    s = WS.sub(" ", re.sub(r"[^a-z0-9 ]", " ", normalize(text))).strip()
+    return LEADING_ARTICLES.sub("", s)
 
 
 def _loose_title_match(title: str, year: int, work: dict) -> bool:

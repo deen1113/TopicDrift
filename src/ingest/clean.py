@@ -13,6 +13,7 @@ Steps:
 
 import html
 import json
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -21,6 +22,44 @@ INTERIM_DIR = Path("data/interim")
 INTERIM_DIR.mkdir(parents=True, exist_ok=True)
 # No conferences in the data
 MAIN_TRACK_VENUES = {"ICSE"}
+
+# IEEE assigns 5-digit DOIs ending in 10xxx to proceedings front-matter
+# (workshop intros, panel summaries, BoFs) — these have no abstract anywhere.
+FRONT_MATTER_DOI = re.compile(r"icse\.\d{4}\.10\d{3}$", re.I)
+
+# Title-shape signals for proceedings front-matter (panels, tutorials,
+# workshop overviews, symposia reports). Mix of prefix-anchored and
+# anywhere-in-title patterns. Audited against the full corpus: every match
+# at the time of writing is a non-research-paper entry — see the run log
+# emitted by filter_front_matter() for the dropped list.
+FRONT_MATTER_TITLE = re.compile(
+    r"(?:"
+    # ---- prefix-anchored proceedings shapes ----
+    r"^(?:the\s+)?\d+(?:st|nd|rd|th)\s+(?:international\s+|icse\s+)?workshop\b"
+    r"|^(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)"
+    r"\s+(?:international\s+|icse\s+)?workshop\b"
+    r"|^(?:international\s+)?workshop\s+(?:on|to)\b"
+    r"|^icse\s+workshop\b"
+    r"|^ecse\s+workshop\b"
+    r"|^[a-z]+[\s-]?\d{1,4}\s*[:\-].*\bworkshop\b"  # SCM-10:, FM91:, FM 89:
+    r"|^bof:"
+    r"|^panel:"
+    r"|^tutorial:"
+    r"|^keynote:"
+    r"|^the\s+international\s+symposium\b"
+    # ---- anywhere-in-title proceedings markers ----
+    r"|\bpanel\s+summary\b"
+    r"|\(panel\)\s*$"
+    r"|\(tutorial\)\s*$"
+    r"|\(workshop\s+report\)"
+    r"|\(workshop\s+session\)"
+    r"|\bfaculty\s+symposium\b"
+    r"|\bdoctoral\s+symposium\b"
+    r"|\bparnas\s+symposium\b"
+    r"|\bphd\s+symposium\b"
+    r")",
+    re.I,
+)
 
 
 def load_raw_dblp(venue_key: str) -> list:
@@ -82,6 +121,24 @@ def filter_to_papers(df: pd.DataFrame) -> pd.DataFrame:
     return df[keep].reset_index(drop=True)
 
 
+def filter_front_matter(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop proceedings front-matter (workshop intros, panel summaries, BoFs).
+    These records have no abstract by construction and add noise to topic models.
+    Signals: IEEE placeholder DOI (icse.YYYY.10xxx) or a workshop/panel title."""
+    doi_hit = df["doi"].fillna("").str.contains(FRONT_MATTER_DOI)
+    title_hit = df["title"].fillna("").str.contains(FRONT_MATTER_TITLE)
+    drop = doi_hit | title_hit
+    n_drop = int(drop.sum())
+    print(f"Dropped {n_drop} front-matter records "
+          f"({int(doi_hit.sum())} placeholder DOI, "
+          f"{int(title_hit.sum())} title pattern, "
+          f"{int((doi_hit & title_hit).sum())} both)")
+    # Full list so an aggressive filter remains auditable in the run log.
+    for title in df.loc[drop, "title"]:
+        print(f"    {title[:100]}")
+    return df[~drop].reset_index(drop=True)
+
+
 def deduplicate(df: pd.DataFrame) -> pd.DataFrame:
     """Deduplicate by dblp_key, then by title+year. Warn on any duplicates found."""
     before = len(df)
@@ -129,6 +186,7 @@ def clean_venue(venue_key: str) -> None:
     df = parse_hits(hits)
     df = filter_to_papers(df)
     df = filter_main_track(df)
+    df = filter_front_matter(df)
     df = deduplicate(df)
     df = flag_missing(df)
     df = df.dropna(subset=["year"])
