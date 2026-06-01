@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TopicDrift — ICSE Research Theme Evolution</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0f1e38;
+      --blue:   #2563eb;
+      --light:  #f8fafc;
+      --border: #e2e8f0;
+      --text:   #1e293b;
+      --muted:  #64748b;
+      --card:   #ffffff;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--light);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 56px 24px 48px;
+      text-align: center;
+    }
+
+    header .eyebrow {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #93c5fd;
+      margin-bottom: 14px;
+    }
+
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    header h1 span {
+      color: #60a5fa;
+    }
+
+    header .subtitle {
+      margin-top: 14px;
+      font-size: 1.05rem;
+      color: #cbd5e1;
+      max-width: 580px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .team-strip {
+      margin-top: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px 6px;
+    }
+
+    .team-strip .name {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 999px;
+      padding: 5px 16px;
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+
+    /* ── Main content ─────────────────────────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 56px 24px 80px;
+    }
+
+    /* ── About ─────────────────────────────────────────────────────── */
+    .about {
+      max-width: 740px;
+      margin-bottom: 56px;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+
+    .about h2 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+
+    .about p {
+      color: var(--muted);
+      font-size: 0.97rem;
+    }
+
+    /* ── Visualizations ─────────────────────────────────────────────── */
+    .viz-section h2 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+
+    .viz-section > p {
+      color: var(--muted);
+      font-size: 0.97rem;
+      margin-bottom: 40px;
+    }
+
+    /* ── Visualization cards ─────────────────────────────────────────── */
+
+    /*
+     * TO ADD A NEW VISUALIZATION:
+     *   1. Copy the generated HTML file into docs/visualizations/
+     *   2. Duplicate a .viz-card block below and update:
+     *        - the <h3> title
+     *        - the <p> description
+     *        - the iframe src to point at the new file
+     *   3. Commit both files.
+     */
+
+    .viz-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    .viz-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+    .viz-card-header {
+      padding: 24px 28px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .viz-card-header h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .viz-card-header p {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .viz-card iframe {
+      display: block;
+      width: 100%;
+      border: none;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 28px 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <p class="eyebrow">CS4530 &nbsp;·&nbsp; Northeastern University</p>
+  <h1>Topic<span>Drift</span></h1>
+  <p class="subtitle">
+    Tracing how research themes have evolved across five decades of
+    software-engineering literature at ICSE (1976–2025).
+  </p>
+  <div class="team-strip">
+    <span class="name">Michael Maaseide</span>
+    <span class="name">Deen Khan</span>
+    <span class="name">Lucas Oberwager</span>
+    <span class="name">Reece DiGiacomo</span>
+  </div>
+</header>
+
+<!-- ── Main ── -->
+<main>
+
+  <!-- About -->
+  <section class="about">
+    <p class="section-label">About</p>
+    <h2>What is TopicDrift?</h2>
+    <p>
+      TopicDrift is a data-driven study of how research priorities shift over time
+      at long-running software-engineering conferences. We combine DBLP metadata
+      with OpenAlex abstracts and citation counts to apply BERTopic clustering
+      across ~7,800 ICSE papers, then track how each topic's share of the field
+      grows, peaks, and fades across decades.
+    </p>
+  </section>
+
+  <!-- Visualizations -->
+  <section class="viz-section">
+    <p class="section-label">Visualizations</p>
+    <h2>Explore the Data</h2>
+    <p>
+      Each chart below is fully interactive. Hover for details, click to drill
+      down, and use the built-in controls to filter or animate.
+    </p>
+
+    <div class="viz-grid">
+
+      <!-- ── Visualization 1: Topic Treemap ─────────────────────────
+           To add more: duplicate this .viz-card block, change the
+           iframe src to the new file in docs/visualizations/, and
+           update the title and description.
+      ──────────────────────────────────────────────────────────────── -->
+      <article class="viz-card">
+        <div class="viz-card-header">
+          <h3>Topic Treemap</h3>
+          <p>
+            A hierarchical breakdown of the ICSE corpus by decade and topic.
+            Tile area reflects paper volume; color reflects mean citation count.
+            Click any topic tile to see a ranked list of its papers.
+          </p>
+        </div>
+        <iframe
+          src="visualizations/topic_treemap.html"
+          height="880"
+          title="ICSE Topic Treemap"
+          loading="lazy"
+        ></iframe>
+      </article>
+
+      <!-- Add new visualization cards here -->
+
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Footer ── -->
+<footer>
+  TopicDrift &nbsp;·&nbsp; CS4530 &nbsp;·&nbsp; Northeastern University
+</footer>
+
+</body>
+</html>
