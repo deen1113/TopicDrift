@@ -1,8 +1,11 @@
 PYTHON ?= python
 
-.PHONY: all ingest clean enrich report topics yearly-topics clean-cache
+.PHONY: all install ingest clean enrich report topics yearly-topics clean-cache dump conf-report conf-scan
 
 all: ingest clean enrich report
+
+install:
+	$(PYTHON) -m pip install -r requirements.txt
 
 # ingest pipeline (data team)
 ingest:
@@ -16,6 +19,15 @@ enrich:
 
 report:
 	$(PYTHON) src/ingest/report.py
+
+# DBLP-wide abstract hit-rate scan (all conferences)
+dump:
+	$(PYTHON) src/ingest/ingest_dblp_dump.py
+
+conf-report:
+	$(PYTHON) src/ingest/conf_abstract_report.py
+
+conf-scan: dump conf-report
 
 # analysis (analysis team)
 topics:
