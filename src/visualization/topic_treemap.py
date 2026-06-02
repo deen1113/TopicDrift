@@ -380,9 +380,10 @@ style.textContent =
 + "body.dark #drift-panel a{color:#6db3f2!important}"
 + "body.dark #drift-panel .statcard{background:#2b2b2b!important}"
 + "body.dark #drift-panel .statcard>div:first-child{color:#f0f0f0!important}"
-// legend (key) dark-mode overrides
-+ "body.dark #leg-panel{background:#262626;border-color:#454545}"
-+ "body.dark #leg-handle{background:#1c1c1c;border-color:#454545}"
+// legend (key) dark-mode overrides — !important because the panel/handle set
+// their light background as an inline style, which otherwise wins over these.
++ "body.dark #leg-panel{background:#262626!important;border-color:#454545!important}"
++ "body.dark #leg-handle{background:#1c1c1c!important;border-color:#454545!important}"
 + "body.dark #leg,body.dark #leg b,body.dark #leg span,body.dark #leg div{color:#e8e8e8!important}";
 document.head.appendChild(style);
 
