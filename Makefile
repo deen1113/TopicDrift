@@ -1,21 +1,37 @@
 PYTHON ?= python
 
-.PHONY: all install ingest clean enrich report topics yearly-topics clean-cache dump conf-report conf-scan
+.PHONY: all install ingest clean enrich enrich-titles enrich-acm enrich-full report topics yearly-topics clean-cache dump conf-report conf-scan conf-corpus
 
+# Standard pipeline (no ACM auth required, no title pass)
 all: ingest clean enrich report
+
+# Full pipeline including title pass and ACM DL scrape
+full: ingest clean enrich enrich-titles enrich-acm report
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt
 
-# ingest pipeline (data team)
+# ingest pipeline
 ingest:
 	$(PYTHON) src/ingest/ingest.py
 
 clean:
 	$(PYTHON) src/ingest/clean.py
 
+# DOI pass only
 enrich:
 	$(PYTHON) src/ingest/enrich_openalex.py
+
+# Optional title search pass. Slow (1 req per DOI-less paper); use on small corpora only
+enrich-titles:
+	$(PYTHON) src/ingest/enrich_openalex.py --title-pass
+
+# Optional: recover abstracts from ACM DL (cookie auth required). Slow (1 req per ACM paper); use on small corpora only
+enrich-acm:
+	$(PYTHON) src/ingest/enrich_acm.py
+
+# Run DOI pass + ACM scrape
+enrich-full: enrich enrich-titles enrich-acm
 
 report:
 	$(PYTHON) src/ingest/report.py
@@ -29,7 +45,11 @@ conf-report:
 
 conf-scan: dump conf-report
 
-# analysis (analysis team)
+# Build pooled corpus from dump + scan cache (no API calls); prerequisite for `make topics`
+conf-corpus:
+	$(PYTHON) src/ingest/build_conf_corpus.py
+
+# analysis
 topics:
 	$(PYTHON) src/analysis/topics.py
 

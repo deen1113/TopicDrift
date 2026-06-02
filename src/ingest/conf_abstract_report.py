@@ -41,6 +41,7 @@ INTERIM_DIR = Path("data/interim")
 TABLES_DIR = Path("outputs/tables")
 REPORTS_DIR = Path("outputs/reports")
 OA_SCAN_CACHE = Path("data/raw/openalex_scan")
+SCAN_SUMMARY = OA_SCAN_CACHE / "_scan_summary.json"  # merged doi->has_abstract map
 for d in (TABLES_DIR, REPORTS_DIR, OA_SCAN_CACHE):
     d.mkdir(parents=True, exist_ok=True)
 
@@ -164,6 +165,15 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
     print(f"  {len(uniq):,} unique DOIs, {n_total:,} batches, "
           f"{MAX_WORKERS} workers @ {SCAN_RATE:.0f} req/s")
 
+    # Fast path: if the merged summary exists and covers this exact DOI set,
+    # skip re-reading all ~33k individual batch files.
+    if SCAN_SUMMARY.exists():
+        summary = json.loads(SCAN_SUMMARY.read_text())
+        if summary.get("n_total") == n_total and summary.get("n_dois") == len(uniq):
+            out: dict[str, bool] = summary["scan"]
+            print(f"  loaded summary cache ({len(out):,} DOIs matched); skipping batch reads")
+            return out, n_total, n_total
+
     for rnd in range(1, MAX_ROUNDS + 1):
         pending = [b for b in batches if not _scan_cache_path(b).exists()]
         if not pending or _budget_exhausted.is_set():
@@ -191,6 +201,15 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
                 out[doi] = bool(work.get("abstract_inverted_index"))
 
     print(f"  {n_cached:,}/{n_total:,} batches cached; matched {len(out):,}/{len(uniq):,} DOIs")
+
+    # Persist the merged result so future runs bypass the batch-file scan.
+    if n_cached == n_total:
+        SCAN_SUMMARY.write_text(json.dumps(
+            {"n_total": n_total, "n_dois": len(uniq), "scan": out},
+            ensure_ascii=False,
+        ))
+        print(f"  wrote summary cache → {SCAN_SUMMARY}")
+
     return out, n_cached, n_total
 
 
@@ -209,6 +228,8 @@ def _aggregate(df: pd.DataFrame, scan: dict[str, bool]) -> pd.DataFrame:
         "n_doi": g["_has_doi"].sum(),
         "n_oa_matched": g["_oa_matched"].sum(),
         "n_abstract": g["_has_abstract"].sum(),
+        "year_first": g["year"].min(),
+        "year_last": g["year"].max(),
     }).reset_index()
     table["n_doi_less"] = table["n_total"] - table["n_doi"]
     table["abstract_hit_rate"] = (table["n_abstract"] / table["n_total"]).round(4)
@@ -216,6 +237,7 @@ def _aggregate(df: pd.DataFrame, scan: dict[str, bool]) -> pd.DataFrame:
     table = table[[
         "conf", "n_total", "n_doi", "n_doi_less",
         "n_oa_matched", "n_abstract", "abstract_hit_rate", "doi_coverage",
+        "year_first", "year_last",
     ]]
     return table.sort_values(
         ["abstract_hit_rate", "n_total"], ascending=[False, False]
