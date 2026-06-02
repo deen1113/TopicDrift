@@ -125,12 +125,16 @@ class TopicModel:
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
         jaccard_merge_threshold: float = DEFAULT_JACCARD_MERGE_THRESHOLD,
         stopwords: list[str] | None = None,
+        cluster_selection_method: str = "eom",
     ):
         self.seed = seed
         self.min_topic_size = min_topic_size
         self.embedding_model_name = embedding_model
         self.jaccard_merge_threshold = jaccard_merge_threshold
         self.stopwords = stopwords if stopwords is not None else load_stopwords()
+        # "eom" picks a few broad clusters; "leaf" gives many fine-grained topics
+        # (needed for large, diverse corpora where eom collapses to a handful).
+        self.cluster_selection_method = cluster_selection_method
         self.model: BERTopic | None = None
         self.topics_: list[int] | None = None
 
@@ -142,7 +146,7 @@ class TopicModel:
         )
         hdbscan_model = HDBSCAN(
             min_cluster_size=self.min_topic_size,
-            metric="euclidean", cluster_selection_method="eom",
+            metric="euclidean", cluster_selection_method=self.cluster_selection_method,
             prediction_data=True,
         )
         return BERTopic(
@@ -154,9 +158,14 @@ class TopicModel:
             verbose=True,
         )
 
+    def embedder(self) -> SentenceTransformer:
+        """Cached sentence-transformer (load once, reuse across batches)."""
+        if getattr(self, "_embedder_obj", None) is None:
+            self._embedder_obj = SentenceTransformer(self.embedding_model_name)
+        return self._embedder_obj
+
     def embed(self, docs: list[str]) -> np.ndarray:
-        embedder = SentenceTransformer(self.embedding_model_name)
-        return np.asarray(embedder.encode(docs, show_progress_bar=True))
+        return np.asarray(self.embedder().encode(docs, show_progress_bar=True))
 
     def fit(
         self,

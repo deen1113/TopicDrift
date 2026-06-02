@@ -34,6 +34,7 @@ dist/
 
 # Data — all tiers are derived; regenerate with `make all`.
 data/
+data2/
 *.parquet
 *.csv.gz
 

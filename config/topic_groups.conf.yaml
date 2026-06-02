@@ -1,0 +1,217 @@
+# config/topic_groups.conf.yaml — global topics fitted into the
+# original 10 ICSE themes (map_seed_themes.py, nearest-anchor).
+# Editable: move labels between themes, then run apply_topic_groups.py.
+
+groups:
+- name: System Design
+  color: '#9333ea'
+  topics:
+  - Reverse Engineering
+  - Controller Tuning
+  - Reverse Orient Code
+  - Healthcare Integration Tech
+  - Resource Efficient Allocation
+  - Parallel Algorithm Design
+  - Service Oriented Architecture
+  - Dynamic Reconfiguration
+  - Optimize Big Data
+  - Gait Analysis Robot
+  - Congestion Control Models
+  - Optimization Algorithms
+  - Memory Interleaving
+  - Graph Optimization
+  - Sweeping Optimization
+  - Optimized Data Processing
+  - Clock Domain Crossing
+  - Network Automation
+  - Knowledge Mechanisms
+  - Holonic Manufacturing Systems
+  - Harmonic Aware Scheduling
+  - Selfadaptability Systems
+  - Data Migration Strategies
+  - Agent Interaction Framework
+  - Color Gamut Mapping
+  - Radar Signal Processing
+  - Multiplier Optimization
+  - Vegetation Water Soil
+  - Optical Network Enhancements
+  - Low Power Oscillator
+  - Optical Network Flexibility
+  - Optimal Simplification
+  - Adaptive Routing Tori
+  - Polynomial System Solving
+  - Microstrip Antenna Optimization
+  - Optimized Noctopics
+  - Stochastic Reachability Analysis
+  - Optical Circuit Innovations
+  - Software Quality Assurance
+  - Microservice Integration
+  - Digital Twin Integration
+- name: AI for Software Engineering
+  color: '#0d9488'
+  topics:
+  - Entity Linking
+  - Energy Efficient Neural
+  - Optimized Segmentation
+  - Dynamic Agent Navigation
+  - Depth Sensor Calibration
+  - Sentiment Analysis
+  - Safely Autonomous Veh
+  - Face Emotion Analysis
+  - Multimodal Search
+  - Optimized Intra Prediction
+  - Enhanced Collaborative Filtering
+  - Graph Neural Network
+  - Optimization Techniques
+  - Image Denoising Enhancement
+  - Spatiotemporal Analytics
+  - Optimized Routing Systems
+  - Handwritten Text Analysis
+  - Adversarial Defense Research
+  - Skeleton-based Estimation
+  - Soft Actuator Design
+  - Crop Health Analysis
+  - Brain Signal Analysis
+  - Voiceprint Enhancement
+  - Gaze Tracking Analysis
+  - Neuromorphic Computing
+  - System Bias Mitigation
+  - Steganographic Techniques
+  - Directional Label Diffusion
+  - Stock Price Prediction
+  - Speech Recognition Enhancements
+  - Optimization Flux
+  - Hesitant Fuzzy Logic
+  - Speech Noise Mitigation
+  - Behavior Modeling
+  - Gesture Sign Recognition
+  - Resting State Analysis
+  - Memristor Integration
+  - Predict Epidemic Spread
+  - Algorithmic Bias Mitigation
+- name: Program Correctness
+  color: '#2563eb'
+  topics:
+  - Equality Saturation
+  - Lazy Abstraction
+  - Android Malware Detection
+  - Dynamic Points-to Data
+  - Concurrent Bug Detection
+  - Safety Assurance Systems
+  - Blockchain Security
+  - Secure Execution
+  - Secure Cloud Computing
+  - Optimized Decoding
+  - Secure Network Protocols
+  - Optimistic Locking
+  - Passwordless Login
+  - Loop-extended Execution
+  - Puf Attack Resistance
+  - Compiler Optimization Techniques (2)
+  - Quantum Integration Challenges
+  - Message Life Spacies
+  - Policy Adaptation
+  - Aspect Oriented Programming
+  - Grammar Synthesis
+  - Fast Conservative
+  - Differential Privacy Queries
+  - Phishing Detection
+  - Legal Argument Extraction
+  - Float Precision Analysis
+  - Spreadsheets Analysis
+- name: Emerging Platforms
+  color: '#e11d48'
+  topics:
+  - Iot Context Device
+  - Mesh Network Optimization
+  - Channel Estimation Techniques
+  - Optimized Hetnet Coordination
+  - Digital Marketplace Integration
+  - Peer Qoe Enhancement
+  - Signal Enhancement
+  - Signal Enhancement (2)
+  - Smart Grid Forecast
+  - Ddos Defense Enhancement
+  - Haptic Interface Design
+  - Fall Detection Sensor
+  - Iot Water Sensor
+  - Optimized Routing
+  - High Speed Amplifiers
+  - Sparse Recovery Algorithms
+  - Spectrum Sensing Enhancement
+  - Optimized Relay Networks
+  - Location Privacy Protection
+  - Smart City Integration
+  - Collision Detection
+- name: Defect Management
+  color: '#ea580c'
+  topics:
+  - Sequence Annotation Tools
+  - Predictive Equipment Maintenance
+  - Multirobot Slam
+  - Execution-free Program Repair
+  - Svm Imbalance Handling
+  - Eclipse Bug Prioritization
+  - Dynamic Fault Tolerance
+  - Defect Prediction Project
+  - Density Guided Clustering
+  - Fault Identification Machinery
+  - Object Tracking Enhancement
+  - Anomaly Detection Systems
+  - Attribute Reduction
+  - Fault Spectrum Analysis
+  - Build Failure Analysis
+  - Fault Diagnosis
+  - Biometric Security Enhancements
+  - Hyperspectral Analysis
+  - Log Insight Enhancement
+  - Credit Fraud Mitigation
+  - Granular Computing Advances
+- name: Developer Tooling
+  color: '#d97706'
+  topics:
+  - Code Smell Detection
+  - Student Performance Prediction
+  - Interactive Analytics
+  - Compiler Optimization Techniques
+  - Code Synthesis
+  - Code Search Enhancement
+  - Clone Analysis
+- name: Human Factors in Software Engineering
+  color: '#16a34a'
+  topics:
+  - Interactive Ar Experiences
+  - Emotional Expression
+  - Game Theory Models
+  - Interactive Soundscapes
+  - Inclusive Design Teams
+  - Accessible Tech Education
+  - Ethical Ai
+  - Crowd Advisory
+- name: Software Testing
+  color: '#0891b2'
+  topics:
+  - Fault Prediction Models
+  - Low Power Design
+  - Crawling Efficiency
+  - Automated Web Security
+  - Coverage Enhancement
+  - Dependency Freshness
+  - Metamorphic Testing
+- name: Requirements Engineering
+  color: '#65a30d'
+  topics:
+  - Goal Oriented Design
+  - Xml Schema Validation
+  - Optical Detection Systems
+  - Managing Variation
+  - Natural Language Enhancement
+  - Privacy Frameworks Compliance
+  - Traceability Analysis
+- name: Software Process
+  color: '#4f46e5'
+  topics:
+  - Process Integration
+  - Modeling Maintenance Requests
+  - Effort Prediction Models
+  - Technical Debt Management

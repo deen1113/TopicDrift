@@ -1,4 +1,51 @@
+# ── Legacy single-venue ingest (src/ingest/*) ────────────────────────────────
+# Kept for the original per-venue ICSE pipeline (DBLP fetch → clean → enrich).
 icse:
   dblp_slugs: [conf/icse]
   start_year: 1976
   end_year: 2025
+
+# ── Multi-conference topic architecture ───────────────────────────────────────
+# The website has three tabs, each a *venue filter* over ONE global topic space
+# fit from data/processed/conf_enriched.parquet. Editing the lists below is all
+# it takes to change what each tab shows (re-run `make corpus topics groups viz`).
+#
+#   icse   — the ICSE tab (single venue)
+#   top10  — the curated "top 10 most prestigious" tab (edit freely)
+#   all    — every venue passing the abstract/size filter
+#
+# Slugs are DBLP `conf/<acronym>` keys (the `conf` column in conf_enriched).
+scopes:
+  icse:
+    - conf/icse
+
+  # Software-Engineering + Programming-Languages elite. All have >90% abstract
+  # coverage in the corpus. Swap in a cross-CS flagship set here if preferred.
+  top10:
+    - conf/icse      # ICSE
+    - conf/sigsoft   # ESEC/FSE
+    - conf/kbse      # ASE
+    - conf/issta     # ISSTA
+    - conf/icsm      # ICSM / ICSME
+    - conf/msr       # MSR
+    - conf/re        # RE
+    - conf/oopsla    # OOPSLA
+    - conf/pldi      # PLDI
+    - conf/popl      # POPL
+
+  # "All conferences" = venues with enough papers AND decent abstract coverage.
+  # Thresholds keep the corpus meaningful and the fit tractable.
+  all:
+    min_papers: 50
+    min_abstract_rate: 0.5
+
+# ── Global fit settings ───────────────────────────────────────────────────────
+# The clustering (UMAP+HDBSCAN) is fit on a stratified sample of the corpus
+# (the scopes above are always included in full); every paper is then assigned to
+# the resulting topics. Sampling the *fit* keeps memory bounded without changing
+# which topics are discovered.
+fit:
+  sample_size: 120000     # target #docs the clustering is fit on (laptop-friendly;
+                          # raise for a richer fit when not thermally constrained)
+  per_venue_cap: 3000     # max docs any one venue contributes to the fit sample
+  seed: 42

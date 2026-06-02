@@ -1,6 +1,7 @@
 PYTHON ?= python
 
-.PHONY: all install ingest clean enrich report topics yearly-topics clean-cache dump conf-report conf-scan
+.PHONY: all install ingest clean enrich report topics yearly-topics clean-cache dump conf-report conf-scan \
+        corpus conf-topics conf-assign-all conf-group conf-apply conf-viz conf-site
 
 all: ingest clean enrich report
 
@@ -35,6 +36,42 @@ topics:
 
 yearly-topics:
 	$(PYTHON) src/analysis/yearly_topics.py
+
+# ── Multi-conference global pipeline (data/processed/conf_enriched.parquet) ────
+# One global topic space; the website tabs are venue filters over it.
+# Typical first run:   make corpus conf-topics conf-group conf-apply conf-site
+# Then, in the background, extend the assignment to every paper:
+#                      make conf-assign-all conf-apply conf-site
+
+# 1. pick venues + build the stratified fit sample
+corpus:
+	$(PYTHON) src/analysis/select_corpus.py
+
+# 2. fit on the sample, label, assign the sample (fast, working website)
+conf-topics:
+	PYTHONPATH=src/analysis $(PYTHON) src/analysis/topics_conf.py --assign sample
+
+# 2b. extend assignment to the whole 2.3M-paper universe (slow; resumable)
+conf-assign-all:
+	PYTHONPATH=src/analysis $(PYTHON) src/analysis/topics_conf.py --assign all
+
+# 3. fit topics into the 10 ICSE themes (editable: config/topic_groups.conf.yaml)
+conf-group:
+	PYTHONPATH=src/analysis $(PYTHON) src/analysis/map_seed_themes.py
+
+# 4. stamp the grouping into the conf_* tables + registry/report
+conf-apply:
+	$(PYTHON) src/analysis/apply_topic_groups.py --prefix conf_ \
+		--config config/topic_groups.conf.yaml --title "All Conferences"
+
+# 5. (re)generate the per-scope figures and copy them into docs/
+conf-viz:
+	PYTHONPATH=src/visualization $(PYTHON) src/visualization/topic_group_streamgraph.py
+	PYTHONPATH=src/visualization $(PYTHON) src/visualization/topic_scope_treemap.py
+
+conf-site: conf-viz
+	cp outputs/figures/topic_group_streamgraph_*.html docs/visualizations/
+	cp outputs/figures/topic_scope_treemap_*.html docs/visualizations/
 
 clean-cache:
 	rm -rf data outputs
