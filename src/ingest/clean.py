@@ -47,10 +47,11 @@ FRONT_MATTER_TITLE = re.compile(
     r"|^tutorial:"
     r"|^keynote:"
     r"|^the\s+international\s+symposium\b"
+    r"|^message from\b"  # "Message from the Program Chairs", "Message from the Editors"
     # ---- anywhere-in-title proceedings markers ----
     r"|\bpanel\s+summary\b"
-    r"|\(panel\)\s*$"
-    r"|\(tutorial\)\s*$"
+    r"|\(panel[^)]*\)\s*$"    # (panel), (Panel Abstract), (Panel Discussion), etc.
+    r"|\(tutorial[^)]*\)\s*$"
     r"|\(workshop\s+report\)"
     r"|\(workshop\s+session\)"
     r"|\bfaculty\s+symposium\b"
@@ -132,7 +133,7 @@ def filter_front_matter(df: pd.DataFrame) -> pd.DataFrame:
     print(f"Dropped {n_drop} front-matter records "
           f"({int(doi_hit.sum())} placeholder DOI, "
           f"{int(title_hit.sum())} title pattern, "
-          f"{int((doi_hit & title_hit).sum())} both)")
+          f"{int((doi_hit & title_hit).sum())} doi+title overlap)")
     # Full list so an aggressive filter remains auditable in the run log.
     for title in df.loc[drop, "title"]:
         print(f"    {title[:100]}")
