@@ -392,15 +392,10 @@ panel.style.cssText = "font-family:sans-serif;max-width:1100px;margin:18px auto;
 panel.innerHTML = "<p style='color:#777'>Click a topic tile above to list its papers.</p>";
 gd.parentNode.insertBefore(panel, gd.nextSibling);
 
-// Dark-mode toggle, pinned top-right; recolours the page and the figure.
-var dm = document.createElement("div");
-dm.style.cssText = "position:fixed;top:10px;right:14px;z-index:1000;font-family:sans-serif;font-size:13px;display:flex;align-items:center;gap:8px";
-dm.innerHTML = "<span>Dark mode</span><label class='switch'><input type='checkbox' id='dm-toggle'><span class='sw'></span></label>";
-document.body.appendChild(dm);
 var darkOn = false, applyingStruct = false;
 // Recolour just the structural (decade/root) tiles for the current mode so the
-// light-grey buckets don't glare on the dark page. Runs after the dark toggle
-// and after every colour-mode restyle (which repaints them light again).
+// light-grey buckets don't glare on the dark page. Runs after a dark switch and
+// after every colour-mode restyle (which repaints them light again).
 function applyStruct(){
   if (!STRUCT || !STRUCT.length) return;
   var d0 = gd.data[0];
@@ -415,13 +410,27 @@ function applyStruct(){
   Plotly.restyle(gd, fc ? {"marker.colors":[cols], "textfont.color":[fc]} : {"marker.colors":[cols]}, [0])
     .then(function(){ applyingStruct = false; });
 }
-document.getElementById("dm-toggle").addEventListener("change", function(e){
-  darkOn = e.target.checked;
+function applyDark(on){
+  darkOn = !!on;
   document.body.classList.toggle("dark", darkOn);
   Plotly.relayout(gd, darkOn
     ? {paper_bgcolor:"#1e1e1e", plot_bgcolor:"#1e1e1e", "font.color":"#e6e6e6"}
     : {paper_bgcolor:"white", plot_bgcolor:"white", "font.color":"#2a3f5f"}
   ).then(applyStruct);
+}
+
+// Dark mode is owned site-wide: when embedded in a page, the host drives it via
+// postMessage. Only show a local toggle when this figure is viewed standalone.
+var embedded = (window.self !== window.top);
+if (!embedded){
+  var dm = document.createElement("div");
+  dm.style.cssText = "position:fixed;top:10px;right:14px;z-index:1000;font-family:sans-serif;font-size:13px;display:flex;align-items:center;gap:8px";
+  dm.innerHTML = "<span>Dark mode</span><label class='switch'><input type='checkbox' id='dm-toggle'><span class='sw'></span></label>";
+  document.body.appendChild(dm);
+  document.getElementById("dm-toggle").addEventListener("change", function(e){ applyDark(e.target.checked); });
+}
+window.addEventListener("message", function(ev){
+  if (ev.data && ev.data.type === "td-dark"){ applyDark(ev.data.on); }
 });
 
 function esc(s){ return (s+"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
