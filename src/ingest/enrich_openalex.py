@@ -1,10 +1,29 @@
 """
 enrich_openalex.py — Enrich the interim DBLP parquet with OpenAlex data.
 
-Reads:  data/interim/<venue>_dblp.parquet      (from src/clean.py)
-Writes: data/interim/<venue>_enriched.parquet
+Two invocation modes
+--------------------
+Default (DOI pass only — fast, runs on any corpus size):
+    python src/ingest/enrich_openalex.py [venue ...]
 
-Adds columns:
+    Reads:  data/interim/<venue>_dblp.parquet      (from clean.py)
+    Writes: data/interim/<venue>_enriched.parquet
+
+    Fetches DOI-matched works from OpenAlex in parallel batches.
+    Also applies any manual overrides from data/manual/<venue>_overrides.csv.
+    When no venues are given, processes ALL *_dblp.parquet files found in
+    data/interim/.
+
+Title pass (slow — one API call per DOI-less paper; not feasible at >100K papers):
+    python src/ingest/enrich_openalex.py --title-pass [venue ...]
+
+    Reads:  data/interim/<venue>_enriched.parquet  (must exist from DOI pass)
+    Writes: data/interim/<venue>_enriched.parquet  (in-place, adds abstracts)
+
+    Runs OpenAlex title.search for each row still missing an abstract after the
+    DOI pass. Intended for targeted use on small corpora (single venue).
+
+Columns added by the DOI pass:
     venue           str           venue key (e.g. "icse")
     abstract        str | None    reconstructed from OpenAlex inverted index
     has_abstract    bool          recomputed from `abstract`
@@ -15,8 +34,7 @@ Adds columns:
     oa_type         str | None    e.g. "article"
 
 OpenAlex polite pool (mailto=): 10 req/s. A doi filter takes at most 100 values
-and the GET URL must stay under 4094 bytes, so batches are packed to both.
-DOI-less rows get a second pass via OpenAlex title.search + publication_year.
+and the GET URL must stay under 4094 bytes, so batches are packed to both limits.
 Raw responses cached under data/raw/openalex/.
 """
 import hashlib
@@ -340,12 +358,13 @@ def fetch_for_dois(dois: list[str]) -> dict[str, dict]:
 
 
 def enrich_venue(venue_key: str) -> None:
+    """DOI pass: fetch OpenAlex data for all DOI-bearing rows, apply overrides."""
     src = INTERIM_DIR / f"{venue_key}_dblp.parquet"
     if not src.exists():
-        raise SystemExit(f"Not found: {src}. Run `python src/clean.py` first.")
+        raise SystemExit(f"Not found: {src}. Run `python src/ingest/clean.py` first.")
 
     df = pd.read_parquet(src)
-    print(f"Loaded {len(df)} rows from {src}")
+    print(f"[{venue_key}] Loaded {len(df)} rows from {src}")
 
     enriched = fetch_for_dois(df["doi"].dropna().tolist())
     empty = _empty_enrichment()
@@ -356,29 +375,97 @@ def enrich_venue(venue_key: str) -> None:
     out["venue"] = venue_key
     _recompute_text_fields(out)
 
-    doi_less = out["doi"].isna() & out["abstract"].isna()
-    n_doi_less = int(doi_less.sum())
-
+    n_doi_less = int((out["doi"].isna() & out["abstract"].isna()).sum())
     if n_doi_less:
-        print(f"{n_doi_less} DOI-less rows without abstract — OpenAlex title pass")
-        fallback_rows = [
-            (idx, out.at[idx, "title"], int(out.at[idx, "year"]))
-            for idx in out.index[doi_less]
-        ]
-        recovered = fetch_by_titles(fallback_rows)
-        for idx, data in recovered.items():
-            _apply_enrichment(out, idx, data)
-        _recompute_text_fields(out)
+        print(f"[{venue_key}] {n_doi_less} DOI-less rows without abstract "
+              f"(run --title-pass to attempt recovery)")
+
+    overrides_path = Path("data/manual") / f"{venue_key}_overrides.csv"
+    if overrides_path.exists():
+        overrides = pd.read_csv(overrides_path).dropna(subset=["abstract"])
+        if not overrides.empty:
+            key_to_idx = out.reset_index().set_index("dblp_key")["index"]
+            applied = 0
+            for _, ov in overrides.iterrows():
+                if ov["dblp_key"] in key_to_idx.index:
+                    idx = key_to_idx[ov["dblp_key"]]
+                    out.at[idx, "abstract"] = ov["abstract"]
+                    applied += 1
+            if applied:
+                _recompute_text_fields(out)
+                print(f"[{venue_key}] Applied {applied} manual override(s) from {overrides_path}")
 
     dest = INTERIM_DIR / f"{venue_key}_enriched.parquet"
     out.to_parquet(dest, index=False)
-    print(f"Wrote {dest} ({len(out)} rows, abstract coverage {100 * out['has_abstract'].mean():.1f}%)")
-    if n_doi_less:
-        print(
-            f"  DOI-less abstract rate: {100 * len(recovered) / n_doi_less:.1f}% "
-            f"({len(recovered)}/{n_doi_less})"
-        )
+    print(f"[{venue_key}] Wrote {dest} ({len(out)} rows, "
+          f"abstract coverage {100 * out['has_abstract'].mean():.1f}%)")
+
+
+def enrich_venue_titles(venue_key: str) -> None:
+    """Title pass: OpenAlex title.search for DOI-less rows still missing an abstract.
+
+    Reads and overwrites data/interim/<venue>_enriched.parquet in place.
+    One API call per row — only use this on small corpora.
+    """
+    src = INTERIM_DIR / f"{venue_key}_enriched.parquet"
+    if not src.exists():
+        raise SystemExit(f"Not found: {src}. Run the DOI pass first.")
+
+    out = pd.read_parquet(src)
+    print(f"[{venue_key}] Loaded {len(out)} rows from {src}")
+
+    doi_less = out["doi"].isna() & out["abstract"].isna()
+    n_doi_less = int(doi_less.sum())
+
+    if not n_doi_less:
+        print(f"[{venue_key}] No DOI-less rows without abstract — nothing to do.")
+        return
+
+    print(f"[{venue_key}] {n_doi_less} DOI-less rows without abstract — OpenAlex title pass")
+    fallback_rows = [
+        (idx, out.at[idx, "title"], int(out.at[idx, "year"]))
+        for idx in out.index[doi_less]
+    ]
+    recovered = fetch_by_titles(fallback_rows)
+    for idx, data in recovered.items():
+        _apply_enrichment(out, idx, data)
+    _recompute_text_fields(out)
+
+    out.to_parquet(src, index=False)
+    print(
+        f"[{venue_key}] Recovered {len(recovered)}/{n_doi_less} abstracts via title search "
+        f"({100 * len(recovered) / n_doi_less:.1f}%)"
+    )
+    print(f"[{venue_key}] Abstract coverage now {100 * out['has_abstract'].mean():.1f}%")
+
+
+def _all_venue_keys() -> list[str]:
+    """Return all venue keys with a *_dblp.parquet file in INTERIM_DIR."""
+    return sorted(p.stem.removesuffix("_dblp") for p in INTERIM_DIR.glob("*_dblp.parquet"))
 
 
 if __name__ == "__main__":
-    enrich_venue("icse")
+    import sys
+
+    args = sys.argv[1:]
+    title_pass = "--title-pass" in args
+    venues = [a for a in args if not a.startswith("--")]
+
+    if not venues:
+        if title_pass:
+            venues = sorted(
+                p.stem.removesuffix("_enriched")
+                for p in INTERIM_DIR.glob("*_enriched.parquet")
+            )
+        else:
+            venues = _all_venue_keys()
+
+    if not venues:
+        raise SystemExit("No venues found. Run clean.py first.")
+
+    if title_pass:
+        for v in venues:
+            enrich_venue_titles(v)
+    else:
+        for v in venues:
+            enrich_venue(v)

@@ -380,10 +380,11 @@ style.textContent =
 + "body.dark #drift-panel a{color:#6db3f2!important}"
 + "body.dark #drift-panel .statcard{background:#2b2b2b!important}"
 + "body.dark #drift-panel .statcard>div:first-child{color:#f0f0f0!important}"
-// legend (key) dark-mode overrides
-+ "body.dark #leg-panel{background:#2a2a2a;border-color:#454545}"
-+ "body.dark #leg-handle{background:#1f1f1f;border-color:#454545}"
-+ "body.dark #leg,body.dark #leg b,body.dark #leg span,body.dark #leg div{color:#d6d6d6!important}";
+// legend (key) dark-mode overrides — !important because the panel/handle set
+// their light background as an inline style, which otherwise wins over these.
++ "body.dark #leg-panel{background:#262626!important;border-color:#454545!important}"
++ "body.dark #leg-handle{background:#1c1c1c!important;border-color:#454545!important}"
++ "body.dark #leg,body.dark #leg b,body.dark #leg span,body.dark #leg div{color:#e8e8e8!important}";
 document.head.appendChild(style);
 
 var panel = document.createElement("div");
@@ -461,11 +462,14 @@ document.getElementById("leg-handle").addEventListener("click", function(){
 });
 
 function legBar(stops){
-  return "<div style='height:13px;border-radius:3px;background:linear-gradient(to right," + stops.join(",") + ")'></div>";
+  // Semi-transparent grey border reads on both light and dark panels, so the
+  // gradient's dark cold end doesn't blend into the dark legend background.
+  return "<div style='height:13px;border-radius:3px;border:1px solid rgba(128,128,128,.5);"
+       + "background:linear-gradient(to right," + stops.join(",") + ")'></div>";
 }
 function legSwatch(c, label){
   return "<div style='display:flex;align-items:center;gap:7px;margin:4px 0'><span style='display:inline-block;"
-       + "width:14px;height:14px;border-radius:3px;background:" + c + ";border:1px solid rgba(0,0,0,.15)'></span>" + esc(label) + "</div>";
+       + "width:14px;height:14px;border-radius:3px;background:" + c + ";border:1px solid rgba(128,128,128,.55)'></span>" + esc(label) + "</div>";
 }
 function renderLegend(idx){
   var mode = MODES[idx] || "identity";
