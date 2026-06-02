@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: all install ingest clean enrich enrich-titles enrich-acm enrich-full report topics yearly-topics clean-cache dump conf-report conf-scan
+.PHONY: all install ingest clean enrich enrich-titles enrich-acm enrich-full report topics yearly-topics clean-cache dump conf-report conf-scan conf-corpus
 
 # Standard pipeline (no ACM auth required, no title pass)
 all: ingest clean enrich report
@@ -44,6 +44,10 @@ conf-report:
 	$(PYTHON) src/ingest/conf_abstract_report.py
 
 conf-scan: dump conf-report
+
+# Build pooled corpus from dump + scan cache (no API calls); prerequisite for `make topics`
+conf-corpus:
+	$(PYTHON) src/ingest/build_conf_corpus.py
 
 # analysis
 topics:

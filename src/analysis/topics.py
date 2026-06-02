@@ -1,10 +1,37 @@
 """
-topics.py — Global BERTopic fit over all ICSE papers.
+topics.py — BERTopic topic-drift model over a pooled multi-conference corpus.
+
+Corpus: all DBLP conferences with >= MIN_PAPERS papers and > MIN_HIT_RATE
+abstract hit rate (from outputs/tables/conf_abstract_hit_rate_all.csv).
+Input is data/interim/conf_enriched.parquet (built by build_conf_corpus.py).
+
+Pipeline:
+  embed (all-MiniLM-L6-v2)
+  → UMAP (n_components=5, cosine)
+  → HDBSCAN (min_cluster_size=15)
+  → c-TF-IDF with stopwords from config/stopwords.txt + sklearn English
+  → reduce_outliers(strategy="c-tf-idf")
+
+Validation:
+  1. Sanity events — known CS inflections recover their expected peak years
+  2. Top papers per topic — most-recent 10 per topic for eyeballing
+  3. Outlier timeline — share of -1 per year
+  4. Stability (Adjusted Rand Index) — fit twice with different seeds
+  5. Topic diversity — unique top-N words / total top-N slots
+  6. LLM-as-judge — Claude rates each topic for coherence (skipped if no key)
+
+Per-document fit score is stored in conf_paper_topics.parquet as
+`topic_probability` — the model's max-class probability for that paper.
 
 Writes:
-  data/processed/icse_topics.parquet
-  data/processed/icse_paper_topics.parquet
-  data/processed/icse_topics_over_time.parquet
+  data/processed/conf_topics.parquet
+  data/processed/conf_paper_topics.parquet
+  data/processed/conf_topics_over_time.parquet
+  outputs/tables/topic_sanity_events.csv
+  outputs/tables/topic_top_papers.csv
+  outputs/tables/topic_outlier_timeline.csv
+  outputs/tables/topic_diversity_overlap.csv
+  outputs/tables/topic_llm_ratings.csv   (if ANTHROPIC_API_KEY is set)
 """
 from pathlib import Path
 
@@ -21,16 +48,32 @@ OUTPUTS_TABLES.mkdir(parents=True, exist_ok=True)
 SEED = 42
 BUCKET_YEARS = 5
 
+# Conference selection thresholds (applied to CONF_HIT_RATE_CSV at load time).
+CONF_HIT_RATE_CSV = OUTPUTS_TABLES / "conf_abstract_hit_rate_all.csv"
+MIN_PAPERS = 1000    # minimum papers in a conference to qualify
+MIN_HIT_RATE = 0.95  # minimum abstract hit rate to qualify
+
 
 def bucket_year(y: int) -> int:
     return (y // BUCKET_YEARS) * BUCKET_YEARS
 
 
+def load_selected_corpus() -> pd.DataFrame:
+    """Load papers from conferences meeting MIN_PAPERS and MIN_HIT_RATE thresholds."""
+    ranks = pd.read_csv(CONF_HIT_RATE_CSV)
+    keep = set(ranks[(ranks["n_total"] >= MIN_PAPERS) &
+                     (ranks["abstract_hit_rate"] > MIN_HIT_RATE)]["conf"])
+    df = pd.read_parquet(INTERIM_DIR / "conf_enriched.parquet")
+    df = df[df["conf"].isin(keep) & df["has_abstract"]].reset_index(drop=True)
+    print(f"Loaded {len(df):,} papers from {len(keep):,} conferences "
+          f"(>= {MIN_PAPERS} papers, > {MIN_HIT_RATE:.0%} hit rate)")
+    return df
+
+
 def fit():
-    df = pd.read_parquet(INTERIM_DIR / "icse_enriched.parquet")
-    df = df[df["has_abstract"]].reset_index(drop=True)
+    df = load_selected_corpus()
     stopwords = load_stopwords()
-    print(f"Fitting on {len(df)} papers | {len(stopwords)} stopwords")
+    print(f"Fitting on {len(df):,} papers | {len(stopwords)} stopwords")
 
     docs = df["text"].tolist()
     timestamps = df["year"].apply(bucket_year).tolist()
@@ -61,18 +104,18 @@ def fit():
     probabilities = tm.per_doc_probabilities(docs)
 
     pt = tm.assign_papers(df, probabilities=probabilities)
-    pt.to_parquet(PROCESSED_DIR / "icse_paper_topics.parquet", index=False)
-    print(f"  wrote icse_paper_topics.parquet ({len(pt)} rows)")
+    pt.to_parquet(PROCESSED_DIR / "conf_paper_topics.parquet", index=False)
+    print(f"  wrote conf_paper_topics.parquet ({len(pt)} rows)")
 
     info = tm.topic_info()
     info = tm.label_topics_llm(info, pt, df)
     keep = [c for c in ["topic_id", "size", "label", "llm_label", "top_words"] if c in info.columns]
-    info[keep].to_parquet(PROCESSED_DIR / "icse_topics.parquet", index=False)
-    print(f"  wrote icse_topics.parquet ({len(info)} rows)")
+    info[keep].to_parquet(PROCESSED_DIR / "conf_topics.parquet", index=False)
+    print(f"  wrote conf_topics.parquet ({len(info)} rows)")
 
     tot = tm.topics_over_time(docs, timestamps)
-    tot.to_parquet(PROCESSED_DIR / "icse_topics_over_time.parquet", index=False)
-    print(f"  wrote icse_topics_over_time.parquet ({len(tot)} rows)")
+    tot.to_parquet(PROCESSED_DIR / "conf_topics_over_time.parquet", index=False)
+    print(f"  wrote conf_topics_over_time.parquet ({len(tot)} rows)")
 
 
 if __name__ == "__main__":
