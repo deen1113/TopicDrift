@@ -37,15 +37,20 @@
       transition: background .2s, color .2s;
     }
 
-    /* Dark-mode toggle, pinned top-right of the page. */
+    /* Dark-mode toggle, pinned top-right. Self-contained pill (theme-coloured
+       background + border + shadow) so it stays legible over any background it
+       scrolls past — navy header or white body. */
     .dm-toggle {
       position: fixed; top: 14px; right: 16px; z-index: 1000;
       display: flex; align-items: center; gap: 8px;
-      font-size: 13px; color: #fff;
+      font-size: 13px; color: var(--text);
+      background: var(--card); border: 1px solid var(--border);
+      padding: 6px 12px; border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
     }
     .dm-switch { position: relative; display: inline-block; width: 42px; height: 22px; }
     .dm-switch input { opacity: 0; width: 0; height: 0; }
-    .dm-slider { position: absolute; cursor: pointer; inset: 0; background: rgba(255,255,255,.35); border-radius: 22px; transition: .2s; }
+    .dm-slider { position: absolute; cursor: pointer; inset: 0; background: #94a3b8; border-radius: 22px; transition: .2s; }
     .dm-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
     .dm-switch input:checked + .dm-slider { background: var(--blue); }
     .dm-switch input:checked + .dm-slider:before { transform: translateX(20px); }
