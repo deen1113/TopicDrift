@@ -15,3 +15,4 @@ urllib3==2.7.0
 # analysis stage — BERTopic + LLM-as-judge
 bertopic==0.17.4
 anthropic==0.105.2
+nltk==3.9.4
