@@ -9,7 +9,10 @@ this fetches the complete dump so we can measure abstract availability across
 Reads:  https://dblp.org/xml/dblp.xml.gz  (+ dblp.dtd for entity resolution)
 Writes: data/interim/dblp_conf.parquet
 
-Columns: conf, dblp_key, title, year, doi
+Columns: conf, dblp_key, title, year, doi, authors, ee, url
+
+The per-venue path (topicdrift.ingest.venue) reads this same parquet and slices
+it by `conf`, so we capture everything that downstream needs from one parse.
 
 The dump uses custom HTML entities (&auml; etc.) declared in dblp.dtd, so a
 plain xml.etree parse chokes. We stream-parse with lxml, which resolves those
@@ -94,13 +97,21 @@ def _decompress() -> None:
     tmp.rename(XML_PATH)
 
 
-def _doi_from_ee(elem) -> str | None:
-    """First <ee> pointing at doi.org, normalized like clean.py (no scheme, lower)."""
+def _doi_and_ee(elem) -> tuple[str | None, str | None]:
+    """Return (doi, first_ee_url). Walks <ee> once instead of twice."""
+    first_ee = None
+    doi = None
     for ee in elem.iterfind("ee"):
-        m = DOI_RE.search(ee.text or "")
-        if m:
-            return m.group(1).strip().lower() or None
-    return None
+        text = (ee.text or "").strip()
+        if not text:
+            continue
+        if first_ee is None:
+            first_ee = text
+        if doi is None:
+            m = DOI_RE.search(text)
+            if m:
+                doi = m.group(1).strip().lower() or None
+    return doi, first_ee
 
 
 def _parse_inproceedings() -> pd.DataFrame:
@@ -119,12 +130,17 @@ def _parse_inproceedings() -> pd.DataFrame:
             parts = key.split("/")
             title_el = elem.find("title")
             year_el = elem.find("year")
+            url_el = elem.find("url")
+            doi, ee = _doi_and_ee(elem)
             rows.append({
                 "conf": "/".join(parts[:2]),  # conf/<slug>
                 "dblp_key": key,
                 "title": "".join(title_el.itertext()).strip() if title_el is not None else "",
                 "year": int(year_el.text) if year_el is not None and year_el.text else None,
-                "doi": _doi_from_ee(elem),
+                "doi": doi,
+                "authors": [(a.text or "").strip() for a in elem.iterfind("author") if a.text],
+                "ee": ee,
+                "url": (url_el.text or "").strip() if url_el is not None and url_el.text else None,
             })
             kept += 1
 

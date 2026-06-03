@@ -51,7 +51,7 @@ def _join_list(value) -> str:
 def build_report(venue_key: str) -> None:
     src = INTERIM_DIR / f"{venue_key}_enriched.parquet"
     if not src.exists():
-        raise SystemExit(f"Not found: {src}. Run `python src/ingest/enrich_openalex.py` first.")
+        raise SystemExit(f"Not found: {src}. Run `make venue VENUE={venue_key}` first.")
 
     df = pd.read_parquet(src)
     print(f"Loaded {len(df)} rows from {src}")

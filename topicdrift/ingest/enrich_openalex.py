@@ -361,7 +361,7 @@ def enrich_venue(venue_key: str) -> None:
     """DOI pass: fetch OpenAlex data for all DOI-bearing rows, apply overrides."""
     src = INTERIM_DIR / f"{venue_key}_dblp.parquet"
     if not src.exists():
-        raise SystemExit(f"Not found: {src}. Run `python src/ingest/clean.py` first.")
+        raise SystemExit(f"Not found: {src}. Run `make venue VENUE={venue_key}` first.")
 
     df = pd.read_parquet(src)
     print(f"[{venue_key}] Loaded {len(df)} rows from {src}")

@@ -11,9 +11,20 @@ make help
 
 Pick one depending on what you want.
 
+### Shared data (one-time)
+
+Both workflows read from the same on-disk caches. Build them once:
+
+```bash
+make dump       # download + parse DBLP XML → dblp_conf.parquet (~30 min, ~1 GB)
+make scan       # dump + OpenAlex abstract scan + pooled corpus (~days, resumable)
+```
+
+`scan` depends on `dump`, so a fresh checkout can go straight to `make scan` if you want both. Workflow A only needs `dump`; Workflow B needs `scan`.
+
 ### A. One or more venues → preview CSVs
 
-Fetch DBLP, enrich with OpenAlex, write a human-readable CSV per venue. Useful for exploring a single conference or a hand-picked set.
+Slice the DBLP dump down to one (or more) venues, enrich with OpenAlex, write a human-readable CSV per venue. Requires `make dump`.
 
 ```bash
 make venue                                # default: VENUE=icse
@@ -25,10 +36,9 @@ Outputs: `outputs/tables/<venue>_papers_preview.csv` per venue, plus silver-laye
 
 ### B. Multi-conference topic drift — icse / top10 / all
 
-One global topic space fit on a stratified sample across every qualifying DBLP conference. The website renders three scopes — a single venue (ICSE), a curated top 10, and the full set — as venue filters over that same model. Scope membership lives in `config/venues.yaml`; edit the lists there to change what each scope shows.
+One global topic space fit on a stratified sample across every qualifying DBLP conference. The website renders three scopes — a single venue (ICSE), a curated top 10, and the full set — as venue filters over that same model. Scope membership lives in `config/venues.yaml`; edit the lists there to change what each scope shows. Requires `make scan`.
 
 ```bash
-make scan       # DBLP-wide dump + OpenAlex scan (~days, resumable)
 make corpus     # stratified fit sample (fast, no API)
 make topics     # fit BERTopic on the sample
 make groups     # map topics → curated themes (edit config/topic_groups.conf.yaml)
