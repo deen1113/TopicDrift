@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from topic_model import TopicModel
+from topicdrift.topic_model import TopicModel
 
 PROCESSED_DIR = Path("data/processed")
 OUT_YAML = Path("config/topic_groups.conf.yaml")

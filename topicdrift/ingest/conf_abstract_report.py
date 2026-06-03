@@ -28,7 +28,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from enrich_openalex import (
+from topicdrift.ingest.enrich_openalex import (
     MAILTO,
     MAX_WORKERS,
     OPENALEX_URL,

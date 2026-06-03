@@ -23,7 +23,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import yaml
 
-from topic_model import TopicModel, load_stopwords
+from topicdrift.topic_model import TopicModel, load_stopwords
 
 PROCESSED_DIR = Path("data/processed")
 CONF_ENRICHED = PROCESSED_DIR / "conf_enriched.parquet"

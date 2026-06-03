@@ -42,7 +42,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-from _common import clean_author, load_paper_topics, load_topics, save, topic_labels
+from topicdrift.visualization._common import clean_author, load_paper_topics, load_topics, save, topic_labels
 
 NAME = "researcher_migration_sankey"
 TOP_K = 12          # restrict to the K largest topics for legibility

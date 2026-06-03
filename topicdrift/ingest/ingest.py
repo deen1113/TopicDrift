@@ -11,6 +11,7 @@ instead, filtered to papers whose DBLP key starts with the slug (avoids
 false-positive matches from other venues whose acronym shares a prefix).
 """
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -106,4 +107,6 @@ def fetch_all_papers(venue_key):
 
 
 if __name__ == "__main__":
-    fetch_all_papers("icse")
+    venues = sys.argv[1:] or ["icse"]
+    for v in venues:
+        fetch_all_papers(v)

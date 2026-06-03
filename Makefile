@@ -1,91 +1,104 @@
 PYTHON ?= python
+VENUE  ?= icse
 
-.PHONY: all full install ingest clean enrich enrich-titles enrich-acm enrich-full report \
-        clean-cache dump conf-report conf-scan conf-corpus \
-        corpus conf-topics conf-assign-all conf-group conf-apply conf-viz conf-site
+.DEFAULT_GOAL := help
 
-# Standard pipeline (no ACM auth required, no title pass)
-all: ingest clean enrich report
+.PHONY: help install \
+        venue venue-deep \
+        scan corpus topics topics-all groups apply figures site analysis \
+        status clean-data
 
-# Full pipeline including title pass and ACM DL scrape
-full: ingest clean enrich enrich-titles enrich-acm report
+help:  ## Show this help
+	@printf "\nTopicDrift — pipeline targets\n\n"
+	@printf "Setup:\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(install):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "\nWorkflow A — single or multiple venues (DBLP + OpenAlex → preview CSV)\n"
+	@printf "  Override venues with VENUE=\"icse ase issta\" (space-separated). Default: icse.\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(venue|venue-deep):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "\nWorkflow B — multi-conference topic drift (icse / top10 / all scopes)\n"
+	@printf "  Scopes live in config/venues.yaml. Each figure target writes one HTML per scope.\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(scan|corpus|topics|topics-all|groups|apply|figures|site|analysis):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "\nExtras:\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(status|clean-data):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "\n"
 
-install:
-	$(PYTHON) -m pip install -r requirements.txt
+install:  ## Editable install (pip install -e .)
+	$(PYTHON) -m pip install -e .
 
-# ingest pipeline
-ingest:
-	$(PYTHON) src/ingest/ingest.py
+# ───────── Workflow A — single or multiple venues ─────────
+# VENUE accepts one or more space-separated DBLP keys (e.g. icse, ase, issta).
+# Defaults to icse. Each ingest step iterates over the list.
 
-clean:
-	$(PYTHON) src/ingest/clean.py
+venue:  ## DBLP fetch → clean → OpenAlex enrich → preview CSV
+	$(PYTHON) -m topicdrift.ingest.ingest $(VENUE)
+	$(PYTHON) -m topicdrift.ingest.clean $(VENUE)
+	$(PYTHON) -m topicdrift.ingest.enrich_openalex $(VENUE)
+	$(PYTHON) -m topicdrift.ingest.report $(VENUE)
 
-# DOI pass only
-enrich:
-	$(PYTHON) src/ingest/enrich_openalex.py
+venue-deep: venue  ## venue + slow title-pass + ACM DL scrape (ACM needs cookie auth)
+	$(PYTHON) -m topicdrift.ingest.enrich_openalex --title-pass $(VENUE)
+	$(PYTHON) -m topicdrift.ingest.enrich_acm $(VENUE)
 
-# Optional title search pass. Slow (1 req per DOI-less paper); use on small corpora only
-enrich-titles:
-	$(PYTHON) src/ingest/enrich_openalex.py --title-pass
+# ───────── Workflow B — multi-conference topic drift ──────
+# Run order for a first-time setup:
+#   make scan       # slow (~days, paced by OpenAlex daily budget; resumable)
+#   make corpus     # fast (no API calls)
+#   make topics     # fits BERTopic on the stratified sample
+#   make groups     # writes config/topic_groups.conf.yaml (edit between if desired)
+#   make apply
+#   make figures    # or `make site` to also copy HTML into docs/visualizations/
+# Or: `make analysis` runs every step end-to-end.
 
-# Optional: recover abstracts from ACM DL (cookie auth required). Slow (1 req per ACM paper); use on small corpora only
-enrich-acm:
-	$(PYTHON) src/ingest/enrich_acm.py
+scan:  ## DBLP-wide dump + OpenAlex scan + pooled corpus (~days, resumable)
+	$(PYTHON) -m topicdrift.ingest.ingest_dblp_dump
+	$(PYTHON) -m topicdrift.ingest.conf_abstract_report
+	$(PYTHON) -m topicdrift.ingest.build_conf_corpus
 
-# Run DOI pass + ACM scrape
-enrich-full: enrich enrich-titles enrich-acm
+corpus:  ## Stratified fit sample (data/processed/conf_universe.parquet)
+	$(PYTHON) -m topicdrift.analysis.select_corpus
 
-report:
-	$(PYTHON) src/ingest/report.py
+topics:  ## Fit BERTopic on the sample + assign sample papers (fast)
+	$(PYTHON) -m topicdrift.analysis.topics_conf --assign sample
 
-# DBLP-wide abstract hit-rate scan (all conferences)
-dump:
-	$(PYTHON) src/ingest/ingest_dblp_dump.py
+topics-all:  ## Extend topic assignment to every paper (slow; resumable)
+	$(PYTHON) -m topicdrift.analysis.topics_conf --assign all
 
-conf-report:
-	$(PYTHON) src/ingest/conf_abstract_report.py
+groups:  ## Map topics → curated themes (edit config/topic_groups.conf.yaml)
+	$(PYTHON) -m topicdrift.analysis.map_seed_themes
 
-conf-scan: dump conf-report
-
-# Build pooled corpus from dump + scan cache (no API calls).
-conf-corpus:
-	$(PYTHON) src/ingest/build_conf_corpus.py
-
-# ── Multi-conference global pipeline (data/processed/conf_enriched.parquet) ────
-# One global topic space; the website tabs are venue filters over it.
-# Typical first run:   make corpus conf-topics conf-group conf-apply conf-site
-# Then, in the background, extend the assignment to every paper:
-#                      make conf-assign-all conf-apply conf-site
-
-# 1. pick venues + build the stratified fit sample
-corpus:
-	$(PYTHON) src/analysis/select_corpus.py
-
-# 2. fit on the sample, label, assign the sample (fast, working website)
-conf-topics:
-	PYTHONPATH=src/analysis $(PYTHON) src/analysis/topics_conf.py --assign sample
-
-# 2b. extend assignment to the whole 2.3M-paper universe (slow; resumable)
-conf-assign-all:
-	PYTHONPATH=src/analysis $(PYTHON) src/analysis/topics_conf.py --assign all
-
-# 3. fit topics into the 10 ICSE themes (editable: config/topic_groups.conf.yaml)
-conf-group:
-	PYTHONPATH=src/analysis $(PYTHON) src/analysis/map_seed_themes.py
-
-# 4. stamp the grouping into the conf_* tables + registry/report
-conf-apply:
-	$(PYTHON) src/analysis/apply_topic_groups.py --prefix conf_ \
+apply:  ## Stamp groupings into conf_* tables + theme registry
+	$(PYTHON) -m topicdrift.analysis.apply_topic_groups --prefix conf_ \
 		--config config/topic_groups.conf.yaml --title "All Conferences"
 
-# 5. (re)generate the per-scope figures and copy them into docs/
-conf-viz:
-	PYTHONPATH=src/visualization $(PYTHON) src/visualization/topic_group_streamgraph.py
-	PYTHONPATH=src/visualization $(PYTHON) src/visualization/topic_scope_treemap.py
+figures:  ## Render per-scope figures (one HTML each for icse / top10 / all)
+	$(PYTHON) -m topicdrift.visualization.topic_group_streamgraph
+	$(PYTHON) -m topicdrift.visualization.topic_scope_treemap
 
-conf-site: conf-viz
+site: figures  ## figures + copy HTML into docs/visualizations/ for the static site
 	cp outputs/figures/topic_group_streamgraph_*.html docs/visualizations/
 	cp outputs/figures/topic_scope_treemap_*.html docs/visualizations/
 
-clean-cache:
+analysis: corpus topics groups apply site  ## End-to-end: corpus → topics → groups → apply → site
+
+# ───────── Extras / utilities ─────────────────────────────
+
+status:  ## Report which pipeline artifacts exist on disk
+	@printf "── Workflow A (single venue) ──\n"
+	@ls -1 data/interim/*_enriched.parquet 2>/dev/null || echo "  (no enriched venues)"
+	@ls -1 outputs/tables/*_papers_preview.csv 2>/dev/null || echo "  (no preview CSVs)"
+	@printf "\n── Workflow B (multi-conference) ──\n"
+	@for f in data/interim/dblp_conf.parquet \
+	          data/processed/conf_enriched.parquet \
+	          data/processed/conf_universe.parquet \
+	          data/processed/conf_topics.parquet \
+	          data/processed/conf_paper_topics.parquet \
+	          data/processed/conf_topic_groups.parquet ; do \
+	  if [ -f $$f ]; then echo "  ✓ $$f"; else echo "  ✗ $$f (missing)"; fi ; \
+	done
+	@printf "\n── Figures ──\n"
+	@ls -1 outputs/figures/topic_group_streamgraph_*.html outputs/figures/topic_scope_treemap_*.html 2>/dev/null | sed 's/^/  /' || echo "  (no figures)"
+
+clean-data:  ## Wipe data/ and outputs/ — confirms first (loses cached API responses)
+	@printf "Wipe data/ and outputs/? This deletes cached DBLP+OpenAlex responses. [y/N] " ; \
+	 read ans ; [ "$$ans" = "y" ] || { echo "aborted." ; exit 1 ; }
 	rm -rf data outputs

@@ -13,6 +13,7 @@ a spreadsheet:
   - sort newest-first, with abstract-present rows on top within each year
 """
 import re
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -74,4 +75,6 @@ def build_report(venue_key: str) -> None:
 
 
 if __name__ == "__main__":
-    build_report("icse")
+    venues = sys.argv[1:] or ["icse"]
+    for v in venues:
+        build_report(v)

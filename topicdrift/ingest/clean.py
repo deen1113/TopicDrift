@@ -14,6 +14,7 @@ Steps:
 import html
 import json
 import re
+import sys
 import pandas as pd
 from pathlib import Path
 
@@ -199,4 +200,6 @@ def clean_venue(venue_key: str) -> None:
 
 
 if __name__ == "__main__":
-    clean_venue("icse")
+    venues = sys.argv[1:] or ["icse"]
+    for v in venues:
+        clean_venue(v)

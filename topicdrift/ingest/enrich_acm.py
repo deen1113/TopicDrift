@@ -32,8 +32,7 @@ import pandas as pd
 import requests
 from lxml import html as lxml_html
 
-sys.path.insert(0, str(Path(__file__).parent))
-from enrich_openalex import _strict_title_match, _loose_title_match, _recompute_text_fields  # noqa: E402
+from topicdrift.ingest.enrich_openalex import _strict_title_match, _loose_title_match, _recompute_text_fields
 
 INTERIM_DIR = Path("data/interim")
 ACM_CACHE = Path("data/raw/acm")
@@ -306,4 +305,6 @@ def enrich_acm(venue_key: str) -> None:
 
 
 if __name__ == "__main__":
-    enrich_acm("icse")
+    venues = sys.argv[1:] or ["icse"]
+    for v in venues:
+        enrich_acm(v)

@@ -12,13 +12,11 @@ Columns in output:
   conf, dblp_key, title, year, doi, abstract, has_abstract, text
 """
 import json
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent))
-from enrich_openalex import normalize, reconstruct_abstract
+from topicdrift.ingest.enrich_openalex import normalize, reconstruct_abstract
 
 INTERIM_DIR = Path("data/interim")
 OA_SCAN_CACHE = Path("data/raw/openalex_scan")
