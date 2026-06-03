@@ -5,6 +5,7 @@ Wraps embed → UMAP → HDBSCAN → c-TF-IDF → outlier-reduce → duplicate-m
 behind a class so the same machinery can drive the global fit (topics.py) and
 per-year fits (yearly_topics.py) without duplicating code.
 """
+
 import hashlib
 import re
 from functools import lru_cache
@@ -35,18 +36,44 @@ DEFAULT_JACCARD_MERGE_THRESHOLD = 0.15
 # Domain-specific lemma overrides for SE shorthand WordNet doesn't know.
 # (WordNet leaves "apps" alone because "app" isn't in its noun inventory.)
 _LEMMA_OVERRIDES = {
-    "apps": "app", "devs": "dev", "libs": "lib", "repos": "repo",
-    "vms": "vm", "uis": "ui", "guis": "gui", "apis": "api",
-    "ides": "ide", "llms": "llm", "dnns": "dnn", "cnns": "cnn",
-    "rnns": "rnn", "asts": "ast",
+    "apps": "app",
+    "devs": "dev",
+    "libs": "lib",
+    "repos": "repo",
+    "vms": "vm",
+    "uis": "ui",
+    "guis": "gui",
+    "apis": "api",
+    "ides": "ide",
+    "llms": "llm",
+    "dnns": "dnn",
+    "cnns": "cnn",
+    "rnns": "rnn",
+    "asts": "ast",
 }
 
 _TOKEN_RE = re.compile(r"(?u)\b\w\w+\b")
 
 # Filler words we never want a label to start or end on.
 _LABEL_CONNECTORS = {
-    "in", "with", "for", "of", "on", "to", "from", "the", "a", "an",
-    "into", "via", "using", "based", "and", "or", "at", "by",
+    "in",
+    "with",
+    "for",
+    "of",
+    "on",
+    "to",
+    "from",
+    "the",
+    "a",
+    "an",
+    "into",
+    "via",
+    "using",
+    "based",
+    "and",
+    "or",
+    "at",
+    "by",
 }
 
 
@@ -92,10 +119,10 @@ def load_stopwords() -> list[str]:
 def _clean_label(text: str, max_words: int = 3) -> str:
     """Normalise an LLM label to title-case, max 3 words, no connectors/punctuation."""
     label = text.strip().splitlines()[0].strip() if text.strip() else ""
-    label = label.strip('"\'`').rstrip(".:;,")
+    label = label.strip("\"'`").rstrip(".:;,")
     for prefix in ("Topic label:", "Label:", "Topic:", "Topic name:"):
         if label.lower().startswith(prefix.lower()):
-            label = label[len(prefix):].strip()
+            label = label[len(prefix) :].strip()
     if " " not in label and len(label) > 14:
         label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", label)
     label = re.sub(r"\s*&\s*|\s+and\s+", " ", label, flags=re.IGNORECASE)
@@ -141,12 +168,16 @@ class TopicModel:
     def build_model(self, seed: int | None = None) -> BERTopic:
         s = self.seed if seed is None else seed
         umap_model = UMAP(
-            n_neighbors=15, n_components=5, min_dist=0.0,
-            metric="cosine", random_state=s,
+            n_neighbors=15,
+            n_components=5,
+            min_dist=0.0,
+            metric="cosine",
+            random_state=s,
         )
         hdbscan_model = HDBSCAN(
             min_cluster_size=self.min_topic_size,
-            metric="euclidean", cluster_selection_method=self.cluster_selection_method,
+            metric="euclidean",
+            cluster_selection_method=self.cluster_selection_method,
             prediction_data=True,
         )
         return BERTopic(
@@ -177,16 +208,23 @@ class TopicModel:
         self.model = self.build_model(seed=seed)
         raw_topics, _ = self.model.fit_transform(docs, embeddings=embeddings)
         n_out_raw = sum(1 for t in raw_topics if t == -1)
-        print(f"  pre-reduce outliers: {n_out_raw}/{len(raw_topics)} ({100*n_out_raw/len(raw_topics):.1f}%)")
+        print(
+            f"  pre-reduce outliers: {n_out_raw}/{len(raw_topics)} ({100*n_out_raw/len(raw_topics):.1f}%)"
+        )
 
         if reduce_outliers and n_out_raw > 0:
-            new_topics = self.model.reduce_outliers(docs, raw_topics, strategy="c-tf-idf")
+            new_topics = self.model.reduce_outliers(
+                docs, raw_topics, strategy="c-tf-idf"
+            )
             self.model.update_topics(
-                docs, topics=new_topics,
+                docs,
+                topics=new_topics,
                 vectorizer_model=make_vectorizer(self.stopwords),
             )
             n_out_new = sum(1 for t in new_topics if t == -1)
-            print(f"  post-reduce outliers: {n_out_new}/{len(new_topics)} ({100*n_out_new/len(new_topics):.1f}%)")
+            print(
+                f"  post-reduce outliers: {n_out_new}/{len(new_topics)} ({100*n_out_new/len(new_topics):.1f}%)"
+            )
             self.topics_ = list(new_topics)
         else:
             self.topics_ = list(raw_topics)
@@ -200,10 +238,14 @@ class TopicModel:
 
     def topic_info(self) -> pd.DataFrame:
         self._require_fit()
-        return self.model.get_topic_info().rename(columns={
-            "Topic": "topic_id", "Count": "size",
-            "Name": "label", "Representation": "top_words",
-        })
+        return self.model.get_topic_info().rename(
+            columns={
+                "Topic": "topic_id",
+                "Count": "size",
+                "Name": "label",
+                "Representation": "top_words",
+            }
+        )
 
     def assign_papers(
         self,
@@ -213,19 +255,25 @@ class TopicModel:
         self._require_fit()
         if probabilities is None:
             probabilities = np.zeros(len(self.topics_))
-        return pd.DataFrame({
-            "dblp_key": df["dblp_key"].values,
-            "year": df["year"].values,
-            "topic_id": self.topics_,
-            "topic_probability": np.asarray(probabilities).round(4),
-        })
+        return pd.DataFrame(
+            {
+                "dblp_key": df["dblp_key"].values,
+                "year": df["year"].values,
+                "topic_id": self.topics_,
+                "topic_probability": np.asarray(probabilities).round(4),
+            }
+        )
 
     def topics_over_time(self, docs: list[str], timestamps: list) -> pd.DataFrame:
         self._require_fit()
-        tot = self.model.topics_over_time(docs, timestamps, nr_bins=None).rename(columns={
-            "Topic": "topic_id", "Words": "top_words",
-            "Frequency": "freq", "Timestamp": "year_bucket",
-        })
+        tot = self.model.topics_over_time(docs, timestamps, nr_bins=None).rename(
+            columns={
+                "Topic": "topic_id",
+                "Words": "top_words",
+                "Frequency": "freq",
+                "Timestamp": "year_bucket",
+            }
+        )
         bucket_totals = tot.groupby("year_bucket")["freq"].transform("sum")
         tot["share"] = tot["freq"] / bucket_totals
         return tot
@@ -259,18 +307,21 @@ class TopicModel:
         pairs = []
         ids = list(word_sets)
         for i, a in enumerate(ids):
-            for b in ids[i + 1:]:
+            for b in ids[i + 1 :]:
                 inter = word_sets[a] & word_sets[b]
                 union = word_sets[a] | word_sets[b]
                 if union:
                     jacc = len(inter) / len(union)
                     if jacc > 0:
-                        pairs.append({
-                            "topic_a": a, "topic_b": b,
-                            "shared": len(inter),
-                            "jaccard": round(jacc, 3),
-                            "shared_words": ", ".join(sorted(inter)),
-                        })
+                        pairs.append(
+                            {
+                                "topic_a": a,
+                                "topic_b": b,
+                                "shared": len(inter),
+                                "jaccard": round(jacc, 3),
+                                "shared_words": ", ".join(sorted(inter)),
+                            }
+                        )
         cols = ["topic_a", "topic_b", "shared", "jaccard", "shared_words"]
         overlap_df = pd.DataFrame(pairs, columns=cols)
         if not overlap_df.empty:
@@ -278,7 +329,9 @@ class TopicModel:
         return diversity, overlap_df
 
     @staticmethod
-    def find_duplicate_groups(overlap_df: pd.DataFrame, threshold: float) -> list[list[int]]:
+    def find_duplicate_groups(
+        overlap_df: pd.DataFrame, threshold: float
+    ) -> list[list[int]]:
         """Union-find groups of topics whose top-word Jaccard >= threshold."""
         high = overlap_df[overlap_df["jaccard"] >= threshold]
         if high.empty:
@@ -327,16 +380,23 @@ class TopicModel:
             print("transformers/torch not installed — skipping LLM labelling")
             return topics_df
 
-        device = "mps" if torch.backends.mps.is_available() else (
-            "cuda" if torch.cuda.is_available() else "cpu")
+        device = (
+            "mps"
+            if torch.backends.mps.is_available()
+            else ("cuda" if torch.cuda.is_available() else "cpu")
+        )
         print(f"\n=== Local-LLM topic labelling ({model_name} on {device}) ===")
         gen = pipeline(
-            "text-generation", model=model_name,
-            dtype=torch.float16, device=device,
+            "text-generation",
+            model=model_name,
+            dtype=torch.float16,
+            device=device,
         )
         tok = gen.tokenizer
 
-        merged = paper_topics.merge(silver[["dblp_key", "title"]], on="dblp_key", how="left")
+        merged = paper_topics.merge(
+            silver[["dblp_key", "title"]], on="dblp_key", how="left"
+        )
         system = (
             "You name software-engineering research topics. Reply with ONLY a topic "
             "name of 2 or 3 plain words separated by single spaces. Use title case. "
@@ -352,20 +412,30 @@ class TopicModel:
             titles = merged[merged["topic_id"] == tid]["title"].dropna()
             sample = titles.sample(min(max_titles, len(titles)), random_state=42)
             title_block = "\n".join(f"- {s[:90]}" for s in sample.tolist())
-            user = (f"Keywords: {words}\n\nExample paper titles:\n{title_block}\n\n"
-                    "Topic name:")
+            user = (
+                f"Keywords: {words}\n\nExample paper titles:\n{title_block}\n\n"
+                "Topic name:"
+            )
             prompt = tok.apply_chat_template(
-                [{"role": "system", "content": system},
-                 {"role": "user", "content": user}],
-                tokenize=False, add_generation_prompt=True,
+                [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
             )
             h = hashlib.sha1((model_name + prompt).encode()).hexdigest()[:16]
             cache_path = LLM_CACHE / f"label_{h}.txt"
             if cache_path.exists():
                 raw = cache_path.read_text()
             else:
-                out = gen(prompt, max_new_tokens=12, do_sample=False,
-                          return_full_text=False, pad_token_id=tok.eos_token_id)
+                out = gen(
+                    prompt,
+                    max_new_tokens=12,
+                    do_sample=False,
+                    return_full_text=False,
+                    pad_token_id=tok.eos_token_id,
+                )
                 raw = out[0]["generated_text"]
                 cache_path.write_text(raw)
             label = _clean_label(raw)

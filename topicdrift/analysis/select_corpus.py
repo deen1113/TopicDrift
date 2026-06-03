@@ -12,6 +12,7 @@ the long tail capped per venue). Also writes outputs/tables/corpus_venues.csv.
 Sampling only the fit bounds memory without changing which topics are found.
 Thresholds + fit settings come from config/venues.yaml.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -68,20 +69,24 @@ def select() -> None:
 
     qualifies = (stats["n_papers"] >= min_papers) & (stats["abstract_rate"] >= min_rate)
     keep_venues = set(stats.index[qualifies]) | forced
-    print(f"  {len(stats)} venues total; {int(qualifies.sum())} pass "
-          f"(>= {min_papers} papers & >= {min_rate:.0%} abstracts); "
-          f"+{len(forced - set(stats.index[qualifies]))} forced scope venues")
+    print(
+        f"  {len(stats)} venues total; {int(qualifies.sum())} pass "
+        f"(>= {min_papers} papers & >= {min_rate:.0%} abstracts); "
+        f"+{len(forced - set(stats.index[qualifies]))} forced scope venues"
+    )
 
     # Assignment universe = abstract-bearing papers in kept venues.
     uni = df[df["has_abstract"] & df["conf"].isin(keep_venues)][
         ["dblp_key", "conf", "year"]
     ].reset_index(drop=True)
-    print(f"  universe: {len(uni):,} abstract-bearing papers across "
-          f"{uni['conf'].nunique():,} venues")
+    print(
+        f"  universe: {len(uni):,} abstract-bearing papers across "
+        f"{uni['conf'].nunique():,} venues"
+    )
 
     # ── Stratified fit sample ────────────────────────────────────────────────
     is_scope = uni["conf"].isin(forced)
-    scope_keys = uni.index[is_scope]                       # always in the fit
+    scope_keys = uni.index[is_scope]  # always in the fit
     budget = max(0, sample_size - len(scope_keys))
 
     # Tail: cap each venue, then scale down proportionally to fit the budget.
@@ -108,17 +113,27 @@ def select() -> None:
     uni.loc[fit_idx, "in_fit"] = True
 
     uni.to_parquet(UNIVERSE_OUT, index=False)
-    print(f"  fit sample: {int(uni['in_fit'].sum()):,} docs "
-          f"({len(scope_keys):,} scope + {len(tail_idx):,} tail)")
+    print(
+        f"  fit sample: {int(uni['in_fit'].sum()):,} docs "
+        f"({len(scope_keys):,} scope + {len(tail_idx):,} tail)"
+    )
     print(f"  wrote {UNIVERSE_OUT}")
 
     # ── Per-venue report ─────────────────────────────────────────────────────
     fit_per_venue = uni[uni["in_fit"]].groupby("conf").size().rename("n_fit")
-    report = stats.assign(
-        kept=stats.index.isin(keep_venues),
-        n_universe=uni.groupby("conf").size().reindex(stats.index).fillna(0).astype(int),
-        n_fit=fit_per_venue.reindex(stats.index).fillna(0).astype(int),
-    ).sort_values("n_universe", ascending=False).reset_index()
+    report = (
+        stats.assign(
+            kept=stats.index.isin(keep_venues),
+            n_universe=uni.groupby("conf")
+            .size()
+            .reindex(stats.index)
+            .fillna(0)
+            .astype(int),
+            n_fit=fit_per_venue.reindex(stats.index).fillna(0).astype(int),
+        )
+        .sort_values("n_universe", ascending=False)
+        .reset_index()
+    )
     report.to_csv(OUTPUTS_TABLES / "corpus_venues.csv", index=False)
     print(f"  wrote {OUTPUTS_TABLES / 'corpus_venues.csv'} ({len(report):,} venues)")
 

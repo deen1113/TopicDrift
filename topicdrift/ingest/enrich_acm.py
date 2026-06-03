@@ -32,7 +32,11 @@ import pandas as pd
 import requests
 from lxml import html as lxml_html
 
-from topicdrift.ingest.enrich_openalex import _strict_title_match, _loose_title_match, _recompute_text_fields
+from topicdrift.ingest.enrich_openalex import (
+    _strict_title_match,
+    _loose_title_match,
+    _recompute_text_fields,
+)
 
 INTERIM_DIR = Path("data/interim")
 ACM_CACHE = Path("data/raw/acm")
@@ -41,7 +45,7 @@ ACM_CACHE.mkdir(parents=True, exist_ok=True)
 DEFAULT_COOKIES = Path.home() / ".config" / "topic-drift" / "acm_cookies.json"
 COOKIES_PATH = Path(os.environ.get("ACM_COOKIES_PATH", str(DEFAULT_COOKIES)))
 
-RATE_LIMIT = 0.5          # req/s — polite to ACM
+RATE_LIMIT = 0.5  # req/s — polite to ACM
 BACKOFF_CODES = {429, 503}
 ACM_URL_PATTERN = re.compile(r"dl\.acm\.org|portal\.acm\.org", re.I)
 
@@ -58,15 +62,17 @@ def _miss_path(url: str) -> Path:
 
 def load_session(cookies_path: Path) -> requests.Session:
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    })
+    session.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+    )
 
     if not cookies_path.exists():
         raise SystemExit(
@@ -88,7 +94,8 @@ def load_session(cookies_path: Path) -> requests.Session:
         if isinstance(raw, list):
             for c in raw:
                 session.cookies.set(
-                    c["name"], c["value"],
+                    c["name"],
+                    c["value"],
                     domain=c.get("domain", ".dl.acm.org"),
                 )
         elif isinstance(raw, dict):
@@ -139,11 +146,15 @@ def _fetch_page(session: requests.Session, url: str) -> bytes | None:
             cache.write_bytes(r.content)
             return r.content
         elif r.status_code == 403:
-            print("  403 — session expired or not authenticated. Re-export cookies and retry.")
+            print(
+                "  403 — session expired or not authenticated. Re-export cookies and retry."
+            )
             sys.exit(1)
         elif r.status_code in BACKOFF_CODES:
             wait = 3 * 2**attempt
-            print(f"    HTTP {r.status_code}, backing off {wait}s (attempt {attempt+1}/4)")
+            print(
+                f"    HTTP {r.status_code}, backing off {wait}s (attempt {attempt+1}/4)"
+            )
             time.sleep(wait)
         elif r.status_code == 404:
             _miss_path(url).write_text("")
@@ -164,7 +175,8 @@ def _extract_abstract(content: bytes) -> str | None:
     paras = tree.xpath('//section[@id="abstract"]//*[@role="paragraph"]')
     if paras:
         text = " ".join(
-            p.text_content().strip() for p in paras
+            p.text_content().strip()
+            for p in paras
             if p.text_content().strip().lower() != "abstract"
         ).strip()
         if text:
@@ -178,7 +190,8 @@ def _extract_abstract(content: bytes) -> str | None:
         divs = tree.xpath(selector)
         if divs:
             parts = [
-                t for p in divs
+                t
+                for p in divs
                 if (t := (p.text_content() or "").strip()) and t.lower() != "abstract"
             ]
             text = " ".join(parts).strip()
@@ -190,7 +203,7 @@ def _extract_abstract(content: bytes) -> str | None:
     if sec:
         text = (sec[0].text_content() or "").strip()
         if text.lower().startswith("abstract"):
-            text = text[len("abstract"):].strip()
+            text = text[len("abstract") :].strip()
         if text:
             return text
 
@@ -251,9 +264,13 @@ def scrape_one(
         if _strict_title_match(dblp_title, year, work):
             pass
         elif _loose_title_match(dblp_title, year, work):
-            print(f"  LOOSE MATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}")
+            print(
+                f"  LOOSE MATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}"
+            )
         else:
-            print(f"  TITLE MISMATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}")
+            print(
+                f"  TITLE MISMATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}"
+            )
 
     abstract = _extract_abstract(content)
     if not abstract:
@@ -270,9 +287,13 @@ def enrich_acm(venue_key: str) -> None:
     df = pd.read_parquet(src)
     print(f"Loaded {len(df)} rows from {src}")
 
-    targets = df[~df["has_abstract"] & df["ee"].fillna("").str.contains(ACM_URL_PATTERN)]
-    print(f"ACM scrape targets: {len(targets)} rows "
-          f"(years {int(targets['year'].min())}–{int(targets['year'].max())})")
+    targets = df[
+        ~df["has_abstract"] & df["ee"].fillna("").str.contains(ACM_URL_PATTERN)
+    ]
+    print(
+        f"ACM scrape targets: {len(targets)} rows "
+        f"(years {int(targets['year'].min())}–{int(targets['year'].max())})"
+    )
 
     if targets.empty:
         print("Nothing to do.")

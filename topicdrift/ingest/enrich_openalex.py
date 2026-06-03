@@ -37,6 +37,7 @@ OpenAlex polite pool (mailto=): 10 req/s. A doi filter takes at most 100 values
 and the GET URL must stay under 4094 bytes, so batches are packed to both limits.
 Raw responses cached under data/raw/openalex/.
 """
+
 import hashlib
 import json
 import re
@@ -232,7 +233,9 @@ def parse_work(work: dict) -> dict:
     }
 
 
-def _fetch_title_one(idx: int, title: str, year: int) -> tuple[int, dict | None, str | None]:
+def _fetch_title_one(
+    idx: int, title: str, year: int
+) -> tuple[int, dict | None, str | None]:
     """OpenAlex title.search for one row. Prefers a strict normalized-title + year
     match; falls back to a loose match (logged for audit). Returns the match kind."""
     cache = _title_cache_path(title, year)
@@ -281,7 +284,9 @@ def fetch_by_titles(rows: list[tuple[int, str, int]]) -> dict[int, dict]:
     out: dict[int, dict] = {}
     strict_n = loose_n = 0
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futs = [pool.submit(_fetch_title_one, idx, title, year) for idx, title, year in rows]
+        futs = [
+            pool.submit(_fetch_title_one, idx, title, year) for idx, title, year in rows
+        ]
         for fut in as_completed(futs):
             idx, parsed, kind = fut.result()
             if parsed:
@@ -343,7 +348,9 @@ def fetch_for_dois(dois: list[str]) -> dict[str, dict]:
 
     if remaining:
         batches = _pack_batches(remaining)
-        print(f"  {len(remaining)}/{len(uniq)} DOIs uncached, {len(batches)} batches, {MAX_WORKERS} workers")
+        print(
+            f"  {len(remaining)}/{len(uniq)} DOIs uncached, {len(batches)} batches, {MAX_WORKERS} workers"
+        )
         t0 = time.monotonic()
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             for fut in as_completed(pool.submit(_fetch_batch, b) for b in batches):
@@ -377,8 +384,10 @@ def enrich_venue(venue_key: str) -> None:
 
     n_doi_less = int((out["doi"].isna() & out["abstract"].isna()).sum())
     if n_doi_less:
-        print(f"[{venue_key}] {n_doi_less} DOI-less rows without abstract "
-              f"(run --title-pass to attempt recovery)")
+        print(
+            f"[{venue_key}] {n_doi_less} DOI-less rows without abstract "
+            f"(run --title-pass to attempt recovery)"
+        )
 
     overrides_path = Path("data/manual") / f"{venue_key}_overrides.csv"
     if overrides_path.exists():
@@ -393,12 +402,16 @@ def enrich_venue(venue_key: str) -> None:
                     applied += 1
             if applied:
                 _recompute_text_fields(out)
-                print(f"[{venue_key}] Applied {applied} manual override(s) from {overrides_path}")
+                print(
+                    f"[{venue_key}] Applied {applied} manual override(s) from {overrides_path}"
+                )
 
     dest = INTERIM_DIR / f"{venue_key}_enriched.parquet"
     out.to_parquet(dest, index=False)
-    print(f"[{venue_key}] Wrote {dest} ({len(out)} rows, "
-          f"abstract coverage {100 * out['has_abstract'].mean():.1f}%)")
+    print(
+        f"[{venue_key}] Wrote {dest} ({len(out)} rows, "
+        f"abstract coverage {100 * out['has_abstract'].mean():.1f}%)"
+    )
 
 
 def enrich_venue_titles(venue_key: str) -> None:
@@ -421,7 +434,9 @@ def enrich_venue_titles(venue_key: str) -> None:
         print(f"[{venue_key}] No DOI-less rows without abstract — nothing to do.")
         return
 
-    print(f"[{venue_key}] {n_doi_less} DOI-less rows without abstract — OpenAlex title pass")
+    print(
+        f"[{venue_key}] {n_doi_less} DOI-less rows without abstract — OpenAlex title pass"
+    )
     fallback_rows = [
         (idx, out.at[idx, "title"], int(out.at[idx, "year"]))
         for idx in out.index[doi_less]
@@ -436,12 +451,16 @@ def enrich_venue_titles(venue_key: str) -> None:
         f"[{venue_key}] Recovered {len(recovered)}/{n_doi_less} abstracts via title search "
         f"({100 * len(recovered) / n_doi_less:.1f}%)"
     )
-    print(f"[{venue_key}] Abstract coverage now {100 * out['has_abstract'].mean():.1f}%")
+    print(
+        f"[{venue_key}] Abstract coverage now {100 * out['has_abstract'].mean():.1f}%"
+    )
 
 
 def _all_venue_keys() -> list[str]:
     """Return all venue keys with a *_dblp.parquet file in INTERIM_DIR."""
-    return sorted(p.stem.removesuffix("_dblp") for p in INTERIM_DIR.glob("*_dblp.parquet"))
+    return sorted(
+        p.stem.removesuffix("_dblp") for p in INTERIM_DIR.glob("*_dblp.parquet")
+    )
 
 
 if __name__ == "__main__":

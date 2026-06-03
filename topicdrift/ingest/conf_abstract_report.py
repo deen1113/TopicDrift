@@ -18,6 +18,7 @@ We reuse the rate-limiter / batching / retry machinery from enrich_openalex but
 request a slimmed payload (just enough to know if an abstract exists) and cache
 to a separate dir so we don't disturb the richer ICSE enrichment cache.
 """
+
 import hashlib
 import json
 import threading
@@ -57,8 +58,8 @@ SCAN_SELECT = "id,doi,abstract_inverted_index"
 # batches aren't cached, so scan_dois retries them in later rounds until the
 # whole corpus is cached — the report is only assembled from cache.
 SCAN_RATE = 8.0
-MAX_ATTEMPTS = 6   # per batch, per round
-MAX_ROUNDS = 10    # whole-corpus retry passes for stragglers
+MAX_ATTEMPTS = 6  # per batch, per round
+MAX_ROUNDS = 10  # whole-corpus retry passes for stragglers
 _scan_limiter = RateLimiter(SCAN_RATE)
 
 # OpenAlex's free tier enforces a daily spend budget (~$1, resets midnight UTC).
@@ -112,7 +113,9 @@ def _fetch_batch_slim(dois: list[str]) -> bool:
     for attempt in range(MAX_ATTEMPTS):
         _scan_limiter.acquire()
         try:
-            r = _session().get(OPENALEX_URL, params=_params_slim(dois), timeout=(10, 60))
+            r = _session().get(
+                OPENALEX_URL, params=_params_slim(dois), timeout=(10, 60)
+            )
         except requests.RequestException:
             time.sleep(min(60, 2**attempt))
             continue
@@ -145,7 +148,9 @@ def _run_round(pending: list[list[str]]) -> int:
             done += 1
             if done % 500 == 0:
                 rate = done / max(time.monotonic() - t0, 1e-6)
-                print(f"    {done:,}/{len(pending):,} ({rate:.1f}/s, {failed:,} failed)")
+                print(
+                    f"    {done:,}/{len(pending):,} ({rate:.1f}/s, {failed:,} failed)"
+                )
     return failed
 
 
@@ -162,8 +167,10 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
     uniq = sorted({d for d in dois if d})
     batches = _pack_batches(uniq)
     n_total = len(batches)
-    print(f"  {len(uniq):,} unique DOIs, {n_total:,} batches, "
-          f"{MAX_WORKERS} workers @ {SCAN_RATE:.0f} req/s")
+    print(
+        f"  {len(uniq):,} unique DOIs, {n_total:,} batches, "
+        f"{MAX_WORKERS} workers @ {SCAN_RATE:.0f} req/s"
+    )
 
     # Fast path: if the merged summary exists and covers this exact DOI set,
     # skip re-reading all ~33k individual batch files.
@@ -171,7 +178,9 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
         summary = json.loads(SCAN_SUMMARY.read_text())
         if summary.get("n_total") == n_total and summary.get("n_dois") == len(uniq):
             out: dict[str, bool] = summary["scan"]
-            print(f"  loaded summary cache ({len(out):,} DOIs matched); skipping batch reads")
+            print(
+                f"  loaded summary cache ({len(out):,} DOIs matched); skipping batch reads"
+            )
             return out, n_total, n_total
 
     for rnd in range(1, MAX_ROUNDS + 1):
@@ -184,7 +193,9 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
             break
         if failed:
             wait = min(120, 30 * rnd)
-            print(f"  round {rnd}: {failed:,} batches failed — pausing {wait}s before retry")
+            print(
+                f"  round {rnd}: {failed:,} batches failed — pausing {wait}s before retry"
+            )
             time.sleep(wait)
 
     leftover = sum(1 for b in batches if not _scan_cache_path(b).exists())
@@ -196,18 +207,24 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
         if not cache.exists():
             continue
         for work in json.loads(cache.read_text()).get("results", []):
-            doi = (work.get("doi") or "").replace("https://doi.org/", "").lower() or None
+            doi = (work.get("doi") or "").replace(
+                "https://doi.org/", ""
+            ).lower() or None
             if doi:
                 out[doi] = bool(work.get("abstract_inverted_index"))
 
-    print(f"  {n_cached:,}/{n_total:,} batches cached; matched {len(out):,}/{len(uniq):,} DOIs")
+    print(
+        f"  {n_cached:,}/{n_total:,} batches cached; matched {len(out):,}/{len(uniq):,} DOIs"
+    )
 
     # Persist the merged result so future runs bypass the batch-file scan.
     if n_cached == n_total:
-        SCAN_SUMMARY.write_text(json.dumps(
-            {"n_total": n_total, "n_dois": len(uniq), "scan": out},
-            ensure_ascii=False,
-        ))
+        SCAN_SUMMARY.write_text(
+            json.dumps(
+                {"n_total": n_total, "n_dois": len(uniq), "scan": out},
+                ensure_ascii=False,
+            )
+        )
         print(f"  wrote summary cache → {SCAN_SUMMARY}")
 
     return out, n_cached, n_total
@@ -223,22 +240,33 @@ def _aggregate(df: pd.DataFrame, scan: dict[str, bool]) -> pd.DataFrame:
         _has_abstract=df["doi"].isin(with_abstract),
     )
     g = df.groupby("conf")
-    table = pd.DataFrame({
-        "n_total": g.size(),
-        "n_doi": g["_has_doi"].sum(),
-        "n_oa_matched": g["_oa_matched"].sum(),
-        "n_abstract": g["_has_abstract"].sum(),
-        "year_first": g["year"].min(),
-        "year_last": g["year"].max(),
-    }).reset_index()
+    table = pd.DataFrame(
+        {
+            "n_total": g.size(),
+            "n_doi": g["_has_doi"].sum(),
+            "n_oa_matched": g["_oa_matched"].sum(),
+            "n_abstract": g["_has_abstract"].sum(),
+            "year_first": g["year"].min(),
+            "year_last": g["year"].max(),
+        }
+    ).reset_index()
     table["n_doi_less"] = table["n_total"] - table["n_doi"]
     table["abstract_hit_rate"] = (table["n_abstract"] / table["n_total"]).round(4)
     table["doi_coverage"] = (table["n_doi"] / table["n_total"]).round(4)
-    table = table[[
-        "conf", "n_total", "n_doi", "n_doi_less",
-        "n_oa_matched", "n_abstract", "abstract_hit_rate", "doi_coverage",
-        "year_first", "year_last",
-    ]]
+    table = table[
+        [
+            "conf",
+            "n_total",
+            "n_doi",
+            "n_doi_less",
+            "n_oa_matched",
+            "n_abstract",
+            "abstract_hit_rate",
+            "doi_coverage",
+            "year_first",
+            "year_last",
+        ]
+    ]
     return table.sort_values(
         ["abstract_hit_rate", "n_total"], ascending=[False, False]
     ).reset_index(drop=True)
@@ -255,7 +283,9 @@ def _md_table(df: pd.DataFrame) -> str:
     return "\n".join([head, sep, *body])
 
 
-def _write_report(df: pd.DataFrame, ranked: pd.DataFrame, scan: dict[str, bool]) -> None:
+def _write_report(
+    df: pd.DataFrame, ranked: pd.DataFrame, scan: dict[str, bool]
+) -> None:
     n_papers = len(df)
     n_doi = int(df["doi"].notna().sum())
     n_abstract = int(df["doi"].isin({d for d, h in scan.items() if h}).sum())
@@ -323,8 +353,10 @@ def build_report() -> None:
     doi_less.to_parquet(doi_less_path, index=False)
     sample_path = TABLES_DIR / "dblp_doi_less_sample.csv"
     doi_less.head(SAMPLE_ROWS).to_csv(sample_path, index=False)
-    print(f"Wrote {doi_less_path} ({len(doi_less):,} DOI-less papers) "
-          f"and {sample_path} (first {min(SAMPLE_ROWS, len(doi_less)):,})")
+    print(
+        f"Wrote {doi_less_path} ({len(doi_less):,} DOI-less papers) "
+        f"and {sample_path} (first {min(SAMPLE_ROWS, len(doi_less)):,})"
+    )
 
     _write_report(df, ranked, scan)
 

@@ -11,6 +11,7 @@ abstracts. No network calls — all data is already local.
 Columns in output:
   conf, dblp_key, title, year, doi, abstract, has_abstract, text
 """
+
 import json
 from pathlib import Path
 
@@ -27,8 +28,9 @@ DEST = INTERIM_DIR / "conf_enriched.parquet"
 
 def _build_doi_abstract_map() -> dict[str, str]:
     """Read every scan batch file; return doi (normalized) -> reconstructed abstract."""
-    batch_files = [p for p in OA_SCAN_CACHE.glob("*.json")
-                   if p.name != "_scan_summary.json"]
+    batch_files = [
+        p for p in OA_SCAN_CACHE.glob("*.json") if p.name != "_scan_summary.json"
+    ]
     total = len(batch_files)
     print(f"Reading {total:,} scan batch files...")
     out: dict[str, str] = {}
@@ -73,12 +75,15 @@ def build() -> None:
         df["title"].map(normalize) + " " + df["abstract"].map(normalize)
     ).str.strip()
 
-    out = df[["conf", "dblp_key", "title", "year", "doi",
-              "abstract", "has_abstract", "text"]]
+    out = df[
+        ["conf", "dblp_key", "title", "year", "doi", "abstract", "has_abstract", "text"]
+    ]
     out.to_parquet(DEST, index=False)
     n_with = int(df["has_abstract"].sum())
-    print(f"Wrote {DEST} ({len(out):,} rows, {n_with:,} with abstract, "
-          f"{100 * n_with / len(out):.1f}% coverage)")
+    print(
+        f"Wrote {DEST} ({len(out):,} rows, {n_with:,} with abstract, "
+        f"{100 * n_with / len(out):.1f}% coverage)"
+    )
 
 
 if __name__ == "__main__":

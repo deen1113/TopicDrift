@@ -12,6 +12,7 @@ a spreadsheet:
   - strip leaked XML/HTML markup from abstracts (OpenAlex embeds <tex> sometimes)
   - sort newest-first, with abstract-present rows on top within each year
 """
+
 import re
 import sys
 from pathlib import Path
@@ -23,8 +24,15 @@ OUTPUTS_TABLES = Path("outputs/tables")
 OUTPUTS_TABLES.mkdir(parents=True, exist_ok=True)
 
 PREVIEW_COLUMNS = [
-    "year", "venue", "title", "authors", "abstract",
-    "keywords", "citation_count", "doi", "has_abstract",
+    "year",
+    "venue",
+    "title",
+    "authors",
+    "abstract",
+    "keywords",
+    "citation_count",
+    "doi",
+    "has_abstract",
 ]
 
 _TAG_RE = re.compile(r"<[^>]+>")

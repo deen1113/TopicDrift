@@ -11,6 +11,7 @@ venue, we still need to:
 
 These run on the per-venue slice, not the whole dump, so cost is negligible.
 """
+
 import re
 
 import pandas as pd
@@ -56,8 +57,10 @@ def filter_front_matter(df: pd.DataFrame, acronym: str) -> pd.DataFrame:
     title_hit = df["title"].fillna("").str.contains(FRONT_MATTER_TITLE)
     drop = doi_hit | title_hit
     n_drop = int(drop.sum())
-    print(f"  dropped {n_drop} front-matter rows "
-          f"({int(doi_hit.sum())} DOI, {int(title_hit.sum())} title)")
+    print(
+        f"  dropped {n_drop} front-matter rows "
+        f"({int(doi_hit.sum())} DOI, {int(title_hit.sum())} title)"
+    )
     return df[~drop].reset_index(drop=True)
 
 

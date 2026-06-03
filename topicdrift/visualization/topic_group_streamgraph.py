@@ -8,6 +8,7 @@ sub-topics and their share of that theme (cards sum to 100%).
 
 Writes: outputs/figures/topic_group_streamgraph_{scope}.html
 """
+
 from __future__ import annotations
 
 import json
@@ -16,15 +17,23 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from _common import (
-    BUCKET_YEARS, FIGURES_DIR, SCOPE_TITLES, conf_group_registry,
-    conf_topic_labels, load_conf_paper_topics, load_scopes, scope_filter,
+    BUCKET_YEARS,
+    FIGURES_DIR,
+    SCOPE_TITLES,
+    conf_group_registry,
+    conf_topic_labels,
+    load_conf_paper_topics,
+    load_scopes,
+    scope_filter,
 )
 
 NAME = "topic_group_streamgraph"
 DEFAULT_COLOR = "#94a3b8"
 
 
-def build_scope_data(pt: pd.DataFrame, id_to_label: dict, group_order: list[str]) -> dict:
+def build_scope_data(
+    pt: pd.DataFrame, id_to_label: dict, group_order: list[str]
+) -> dict:
     """Per-scope payload: group time series + sub-topic drilldown (share-of-group)."""
     df = pt.dropna(subset=["group"]).copy()
     df["bucket"] = (df["year"] // BUCKET_YEARS) * BUCKET_YEARS
@@ -45,7 +54,9 @@ def build_scope_data(pt: pd.DataFrame, id_to_label: dict, group_order: list[str]
 
     # drilldown: sub-topic share OF ITS GROUP per bucket
     topics_detail: dict[str, dict[str, list[dict]]] = {}
-    tb = df.groupby(["group", "bucket", "llm_label"]).size().rename("freq").reset_index()
+    tb = (
+        df.groupby(["group", "bucket", "llm_label"]).size().rename("freq").reset_index()
+    )
     grp_bucket_total = gb.set_index(["group", "bucket"])["freq"].to_dict()
     for g in groups:
         topics_detail[g] = {}
@@ -53,37 +64,60 @@ def build_scope_data(pt: pd.DataFrame, id_to_label: dict, group_order: list[str]
             rows = tb[(tb["group"] == g) & (tb["bucket"] == b)]
             denom = grp_bucket_total.get((g, b), 0) or 1
             entries = [
-                {"name": str(r["llm_label"]), "papers": int(r["freq"]),
-                 "share": round(int(r["freq"]) / denom, 4)}
+                {
+                    "name": str(r["llm_label"]),
+                    "papers": int(r["freq"]),
+                    "share": round(int(r["freq"]) / denom, 4),
+                }
                 for _, r in rows.sort_values("freq", ascending=False).iterrows()
             ]
             if entries:
                 topics_detail[g][str(b)] = entries
 
-    return {"groups": groups, "buckets": buckets, "share": share,
-            "freq": freq, "topics": topics_detail}
+    return {
+        "groups": groups,
+        "buckets": buckets,
+        "share": share,
+        "freq": freq,
+        "topics": topics_detail,
+    }
 
 
 # ── figure ────────────────────────────────────────────────────────────────--
+
 
 def build_fig(data: dict, group_color: dict, title: str) -> go.Figure:
     fig = go.Figure()
     for g in data["groups"]:
         c = group_color.get(g, DEFAULT_COLOR)
-        fig.add_trace(go.Scatter(
-            x=data["buckets"], y=data["share"][g], name=g, mode="lines",
-            stackgroup="one", hoveron="points+fills", fillcolor=c, opacity=0.8,
-            line=dict(color=c, width=1.2),
-            hovertemplate=f"<b>{g}</b><br>period: %{{x}}s<br>share: %{{y:.1%}}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=data["buckets"],
+                y=data["share"][g],
+                name=g,
+                mode="lines",
+                stackgroup="one",
+                hoveron="points+fills",
+                fillcolor=c,
+                opacity=0.8,
+                line=dict(color=c, width=1.2),
+                hovertemplate=f"<b>{g}</b><br>period: %{{x}}s<br>share: %{{y:.1%}}<extra></extra>",
+            )
+        )
     fig.update_layout(
         title=f"Research theme evolution — {title}",
-        xaxis=dict(title="5-year period", tickmode="array",
-                   tickvals=data["buckets"], ticktext=[f"{b}s" for b in data["buckets"]]),
+        xaxis=dict(
+            title="5-year period",
+            tickmode="array",
+            tickvals=data["buckets"],
+            ticktext=[f"{b}s" for b in data["buckets"]],
+        ),
         yaxis=dict(title="Share of papers in period", tickformat=".0%"),
         legend=dict(title="Theme", x=1.01, y=1.0),
-        hovermode="x unified", template="plotly_white",
-        margin=dict(t=60, l=60, r=240, b=60), height=560,
+        hovermode="x unified",
+        template="plotly_white",
+        margin=dict(t=60, l=60, r=240, b=60),
+        height=560,
     )
     return fig
 
@@ -140,18 +174,21 @@ gd.on("plotly_click",function(ev){var pt=ev.points[0];showPanel(pt.data.name,pt.
 """
 
 
-def write_scope(scope: str, pt_scope: pd.DataFrame, id_to_label, group_color,
-                group_order) -> None:
+def write_scope(
+    scope: str, pt_scope: pd.DataFrame, id_to_label, group_color, group_order
+) -> None:
     data = build_scope_data(pt_scope, id_to_label, group_order)
     title = SCOPE_TITLES.get(scope, scope)
     fig = build_fig(data, group_color, title)
-    post = (_POST_SCRIPT
-            .replace("__DATA__", json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))
-            .replace("__COLORS__", json.dumps(group_color, ensure_ascii=False)))
+    post = _POST_SCRIPT.replace(
+        "__DATA__", json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    ).replace("__COLORS__", json.dumps(group_color, ensure_ascii=False))
     dest = FIGURES_DIR / f"{NAME}_{scope}.html"
     fig.write_html(str(dest), include_plotlyjs="cdn", post_script=post)
-    print(f"  wrote {dest.name} ({len(data['groups'])} themes, "
-          f"{len(pt_scope):,} papers, {len(data['buckets'])} buckets)")
+    print(
+        f"  wrote {dest.name} ({len(data['groups'])} themes, "
+        f"{len(pt_scope):,} papers, {len(data['buckets'])} buckets)"
+    )
 
 
 def main() -> None:
@@ -159,8 +196,10 @@ def main() -> None:
     group_color, group_order = conf_group_registry()
     pt = load_conf_paper_topics()
     if "group" not in pt.columns:
-        raise SystemExit("conf_paper_topics has no `group` column — run "
-                         "apply_topic_groups.py --prefix conf_ first.")
+        raise SystemExit(
+            "conf_paper_topics has no `group` column — run "
+            "apply_topic_groups.py --prefix conf_ first."
+        )
     scopes = load_scopes()
     for scope in SCOPE_TITLES:
         pt_scope = scope_filter(pt, scope, scopes)

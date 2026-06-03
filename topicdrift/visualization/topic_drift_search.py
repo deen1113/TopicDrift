@@ -24,12 +24,12 @@ Reads:  data/processed/icse_topics.parquet, icse_topics_over_time.parquet,
         icse_paper_topics.parquet, data/interim/icse_enriched.parquet
 Writes: outputs/figures/topic_drift_search.html
 """
+
 import json
 
 import plotly.graph_objects as go
 
-from _common import (FIGURES_DIR, load_paper_topics, load_topics, load_tot,
-                     short_label)
+from _common import FIGURES_DIR, load_paper_topics, load_topics, load_tot, short_label
 
 NAME = "topic_drift_search"
 
@@ -38,15 +38,15 @@ NAME = "topic_drift_search"
 # words or keyword label. Mirrors the events in topic_sanity_events.csv so the
 # viz lines up with the paper's validation table.
 MILESTONES = [
-    ("Object-oriented (1990)",     "object oriented"),
+    ("Object-oriented (1990)", "object oriented"),
     ("Software process / CMM (1995)", "process cmm maturity"),
-    ("Agile / Scrum (2001)",       "agile scrum"),
-    ("Mining repos (2004)",        "mining repository repositories"),
-    ("Cloud / SaaS (2008)",        "cloud saas service services"),
-    ("Mobile / Android (2010)",    "mobile android apps"),
-    ("Deep learning (2014)",       "deep neural dnn learning"),
-    ("DevOps (2015)",              "devops continuous deployment"),
-    ("LLM / code-gen (2022)",      "llm llms language completion"),
+    ("Agile / Scrum (2001)", "agile scrum"),
+    ("Mining repos (2004)", "mining repository repositories"),
+    ("Cloud / SaaS (2008)", "cloud saas service services"),
+    ("Mobile / Android (2010)", "mobile android apps"),
+    ("Deep learning (2014)", "deep neural dnn learning"),
+    ("DevOps (2015)", "devops continuous deployment"),
+    ("LLM / code-gen (2022)", "llm llms language completion"),
 ]
 
 
@@ -64,10 +64,12 @@ def build():
     for tid, grp in pt[pt["topic_id"] != -1].groupby("topic_id"):
         rows = grp.nlargest(3, "citation_count")
         top_papers[int(tid)] = [
-            {"t": r["title"] or "(untitled)",
-             "y": int(r["year"]),
-             "c": int(r["citation_count"]),
-             "u": r["paper_url"] or ""}
+            {
+                "t": r["title"] or "(untitled)",
+                "y": int(r["year"]),
+                "c": int(r["citation_count"]),
+                "u": r["paper_url"] or "",
+            }
             for _, r in rows.iterrows()
         ]
 
@@ -406,7 +408,8 @@ def plot(buckets, bucket_labels, topic_index):
         title="Pick a topic to plot its drift",
         xaxis=dict(title="5-year bucket"),
         yaxis=dict(title="Share of papers in bucket", tickformat=".0%"),
-        height=520, template="plotly_white",
+        height=520,
+        template="plotly_white",
         margin=dict(t=50, l=60, r=20, b=70),
     )
 
@@ -415,11 +418,12 @@ def plot(buckets, bucket_labels, topic_index):
     topics_json = json.dumps(topic_index, ensure_ascii=False).replace("</", "<\\/")
     milestones_json = json.dumps(MILESTONES)
 
-    post = (_POST_SCRIPT
-            .replace("__BUCKETS__", buckets_json)
-            .replace("__LABELS__", labels_json)
-            .replace("__TOPICS__", topics_json)
-            .replace("__MILESTONES__", milestones_json))
+    post = (
+        _POST_SCRIPT.replace("__BUCKETS__", buckets_json)
+        .replace("__LABELS__", labels_json)
+        .replace("__TOPICS__", topics_json)
+        .replace("__MILESTONES__", milestones_json)
+    )
 
     dest = FIGURES_DIR / f"{NAME}.html"
     fig.write_html(str(dest), include_plotlyjs="cdn", post_script=post)

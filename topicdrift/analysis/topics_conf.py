@@ -13,6 +13,7 @@ papers to their nearest centroid:
 Reads  conf_universe.parquet, conf_enriched.parquet
 Writes conf_topics.parquet, conf_paper_topics.parquet, conf_topic_centroids.npy
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,6 +46,7 @@ def _cfg() -> dict:
 
 # ── text lookup ───────────────────────────────────────────────────────────────
 
+
 def load_text(dblp_keys: list[str], cols=("dblp_key", "text", "title")) -> pd.DataFrame:
     """Pull selected columns from conf_enriched for the given keys, in key order."""
     want = set(dblp_keys)
@@ -57,15 +59,20 @@ def load_text(dblp_keys: list[str], cols=("dblp_key", "text", "title")) -> pd.Da
             parts.append(hit)
     df = pd.concat(parts, ignore_index=True).drop_duplicates("dblp_key")
     order = pd.Categorical(df["dblp_key"], categories=dblp_keys, ordered=True)
-    return df.assign(_o=order).sort_values("_o").drop(columns="_o").reset_index(drop=True)
+    return (
+        df.assign(_o=order).sort_values("_o").drop(columns="_o").reset_index(drop=True)
+    )
 
 
 # ── embedding ───────────────────────────────────────────────────────────────--
 
+
 def embed_docs(docs: list[str], embedder) -> np.ndarray:
     """L2-normalised float32 embeddings."""
     emb = embedder.encode(
-        docs, batch_size=EMBED_BATCH, show_progress_bar=True,
+        docs,
+        batch_size=EMBED_BATCH,
+        show_progress_bar=True,
         normalize_embeddings=True,
     )
     return np.asarray(emb, dtype=np.float32)
@@ -73,12 +80,18 @@ def embed_docs(docs: list[str], embedder) -> np.ndarray:
 
 # ── fit ───────────────────────────────────────────────────────────────────────
 
-def fit_topics(fit_df: pd.DataFrame, min_topic_size: int, seed: int,
-               cluster_selection: str = "eom"):
+
+def fit_topics(
+    fit_df: pd.DataFrame, min_topic_size: int, seed: int, cluster_selection: str = "eom"
+):
     """Fit BERTopic on the sample; return (TopicModel, topics_list, embeddings)."""
     stopwords = load_stopwords()
-    tm = TopicModel(seed=seed, min_topic_size=min_topic_size, stopwords=stopwords,
-                    cluster_selection_method=cluster_selection)
+    tm = TopicModel(
+        seed=seed,
+        min_topic_size=min_topic_size,
+        stopwords=stopwords,
+        cluster_selection_method=cluster_selection,
+    )
 
     if FIT_EMB.exists() and np.load(FIT_EMB, mmap_mode="r").shape[0] == len(fit_df):
         print(f"  [cache] {FIT_EMB.name}")
@@ -89,7 +102,9 @@ def fit_topics(fit_df: pd.DataFrame, min_topic_size: int, seed: int,
         np.save(FIT_EMB, embeddings)
 
     print(f"\n=== Global fit (seed={seed}, min_topic_size={min_topic_size}) ===")
-    topics = tm.fit(fit_df["text"].tolist(), embeddings=embeddings, reduce_outliers=False)
+    topics = tm.fit(
+        fit_df["text"].tolist(), embeddings=embeddings, reduce_outliers=False
+    )
     n = len(set(topics)) - (1 if -1 in topics else 0)
     print(f"  → {n} topics")
     groups = tm.merge_duplicates(fit_df["text"].tolist())
@@ -100,7 +115,9 @@ def fit_topics(fit_df: pd.DataFrame, min_topic_size: int, seed: int,
     return tm, list(topics), embeddings
 
 
-def topic_centroids(embeddings: np.ndarray, topics: list[int]) -> tuple[np.ndarray, list[int]]:
+def topic_centroids(
+    embeddings: np.ndarray, topics: list[int]
+) -> tuple[np.ndarray, list[int]]:
     """Mean (renormalised) embedding per non-outlier topic, ordered by topic_id."""
     topics_arr = np.asarray(topics)
     ids = sorted(t for t in set(topics) if t != -1)
@@ -112,16 +129,19 @@ def topic_centroids(embeddings: np.ndarray, topics: list[int]) -> tuple[np.ndarr
     return np.vstack(rows).astype(np.float32), ids
 
 
-def assign_nearest(emb: np.ndarray, centroids: np.ndarray, ids: np.ndarray) -> np.ndarray:
+def assign_nearest(
+    emb: np.ndarray, centroids: np.ndarray, ids: np.ndarray
+) -> np.ndarray:
     """Argmax cosine (emb and centroids are unit-norm) → topic_id per row."""
     out = np.empty(len(emb), dtype=np.int32)
     for s in range(0, len(emb), ASSIGN_BATCH):
-        chunk = np.asarray(emb[s:s + ASSIGN_BATCH], dtype=np.float32)
-        out[s:s + len(chunk)] = ids[(chunk @ centroids.T).argmax(axis=1)]
+        chunk = np.asarray(emb[s : s + ASSIGN_BATCH], dtype=np.float32)
+        out[s : s + len(chunk)] = ids[(chunk @ centroids.T).argmax(axis=1)]
     return out
 
 
 # ── assignment universes ───────────────────────────────────────────────────────
+
 
 def assign_sample(fit_df, embeddings, centroids, ids) -> pd.DataFrame:
     tid = assign_nearest(embeddings, centroids, np.asarray(ids))
@@ -163,6 +183,7 @@ def assign_all(universe: pd.DataFrame, centroids, ids, embedder) -> pd.DataFrame
 
 # ── main ───────────────────────────────────────────────────────────────────────
 
+
 def _write_topic_table(info: pd.DataFrame, sizes: pd.Series) -> pd.DataFrame:
     """conf_topics.parquet: topic_id, llm_label, top_words, size (assigned count)."""
     keep = [c for c in ("topic_id", "llm_label", "top_words") if c in info.columns]
@@ -179,12 +200,16 @@ def run_fit(args) -> None:
     universe = pd.read_parquet(UNIVERSE)
     fit_keys = universe.loc[universe["in_fit"], "dblp_key"].tolist()
     print(f"Loading text for {len(fit_keys):,} fit docs…")
-    fit_df = (universe[universe["in_fit"]]
-              .merge(load_text(fit_keys), on="dblp_key", how="left")
-              .dropna(subset=["text"]).reset_index(drop=True))
+    fit_df = (
+        universe[universe["in_fit"]]
+        .merge(load_text(fit_keys), on="dblp_key", how="left")
+        .dropna(subset=["text"])
+        .reset_index(drop=True)
+    )
 
-    tm, topics, embeddings = fit_topics(fit_df, args.min_topic_size, seed,
-                                        cluster_selection=args.cluster_selection)
+    tm, topics, embeddings = fit_topics(
+        fit_df, args.min_topic_size, seed, cluster_selection=args.cluster_selection
+    )
     centroids, ids = topic_centroids(embeddings, topics)
     np.save(CENTROIDS_OUT, centroids)
     print(f"  {len(ids)} topic centroids → {CENTROIDS_OUT.name}")
@@ -192,7 +217,8 @@ def run_fit(args) -> None:
     info = tm.topic_info()
     if args.no_label:
         info["llm_label"] = info["top_words"].apply(
-            lambda w: " ".join(str(x).capitalize() for x in list(w)[:3]))
+            lambda w: " ".join(str(x).capitalize() for x in list(w)[:3])
+        )
         print(f"  [no-label] {len(ids)} topics (top-word labels)")
     else:
         fit_pt = fit_df.assign(topic_id=topics)[["dblp_key", "topic_id"]]
@@ -203,7 +229,9 @@ def run_fit(args) -> None:
     else:
         paper_topics = assign_sample(fit_df, embeddings, centroids, ids)
     paper_topics.to_parquet(PAPER_TOPICS_OUT, index=False)
-    print(f"  wrote {PAPER_TOPICS_OUT.name} ({len(paper_topics):,} rows, mode={args.assign})")
+    print(
+        f"  wrote {PAPER_TOPICS_OUT.name} ({len(paper_topics):,} rows, mode={args.assign})"
+    )
     df = _write_topic_table(info, paper_topics.groupby("topic_id").size())
     print(f"  wrote {TOPICS_OUT.name} ({len(df)} topics)")
 
@@ -224,24 +252,38 @@ def run_assign_all() -> None:
     topics_df["size"] = topics_df["topic_id"].map(sizes).fillna(0).astype(int)
     topics_df.to_parquet(TOPICS_OUT, index=False)
     print(f"  assigned {len(paper_topics):,} papers to {len(ids)} topics (reused fit)")
-    print("  next: `python src/analysis/apply_topic_groups.py --prefix conf_ "
-          "--config config/topic_groups.conf.yaml --title 'All Conferences'`")
+    print(
+        "  next: `python src/analysis/apply_topic_groups.py --prefix conf_ "
+        "--config config/topic_groups.conf.yaml --title 'All Conferences'`"
+    )
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--assign", choices=["sample", "all"], default="sample")
     ap.add_argument("--min-topic-size", type=int, default=60)
-    ap.add_argument("--cluster-selection", choices=["eom", "leaf"], default="leaf",
-                    help="'leaf' gives many fine topics; 'eom' a few broad ones")
-    ap.add_argument("--no-label", action="store_true",
-                    help="skip LLM labelling (fast topic-count tuning)")
-    ap.add_argument("--refit", action="store_true",
-                    help="force a fresh fit even when assigning all")
+    ap.add_argument(
+        "--cluster-selection",
+        choices=["eom", "leaf"],
+        default="leaf",
+        help="'leaf' gives many fine topics; 'eom' a few broad ones",
+    )
+    ap.add_argument(
+        "--no-label",
+        action="store_true",
+        help="skip LLM labelling (fast topic-count tuning)",
+    )
+    ap.add_argument(
+        "--refit", action="store_true", help="force a fresh fit even when assigning all"
+    )
     args = ap.parse_args()
 
-    reuse = (args.assign == "all" and not args.refit
-             and CENTROIDS_OUT.exists() and TOPICS_OUT.exists())
+    reuse = (
+        args.assign == "all"
+        and not args.refit
+        and CENTROIDS_OUT.exists()
+        and TOPICS_OUT.exists()
+    )
     if reuse:
         run_assign_all()
     else:

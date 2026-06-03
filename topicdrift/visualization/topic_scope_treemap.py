@@ -13,13 +13,19 @@ Reads:
 
 Writes: outputs/figures/topic_scope_treemap_{scope}.html  (one per scope)
 """
+
 from __future__ import annotations
 
 import plotly.express as px
 
 from _common import (
-    FIGURES_DIR, SCOPE_TITLES, conf_group_registry, conf_topic_labels,
-    load_conf_paper_topics, load_scopes, scope_filter,
+    FIGURES_DIR,
+    SCOPE_TITLES,
+    conf_group_registry,
+    conf_topic_labels,
+    load_conf_paper_topics,
+    load_scopes,
+    scope_filter,
 )
 
 NAME = "topic_scope_treemap"
@@ -31,23 +37,30 @@ def write_scope(scope, pt_scope, id_to_label, color):
     df["theme"] = df["group"].astype(str)
     df["topic"] = df["topic_id"].astype(int).map(id_to_label)
 
-    agg = (df.groupby(["decade", "theme", "topic"]).size()
-             .rename("papers").reset_index())
+    agg = df.groupby(["decade", "theme", "topic"]).size().rename("papers").reset_index()
     # Order decades most-recent-first (so 2020s lands top-left) and tiles
     # largest-first within a decade. With sort=False on the trace, Plotly keeps
     # this order instead of re-sorting every level by value, and squarify packs
     # the decades outward from the 2020s corner.
     agg["_dec"] = agg["decade"].str[:-1].astype(int)
-    agg = agg.sort_values(["_dec", "papers"], ascending=[False, False]).drop(columns="_dec")
+    agg = agg.sort_values(["_dec", "papers"], ascending=[False, False]).drop(
+        columns="_dec"
+    )
     title = SCOPE_TITLES.get(scope, scope)
     fig = px.treemap(
-        agg, path=[px.Constant(title), "decade", "theme", "topic"],
-        values="papers", color="theme", color_discrete_map=color,
+        agg,
+        path=[px.Constant(title), "decade", "theme", "topic"],
+        values="papers",
+        color="theme",
+        color_discrete_map=color,
         title=f"Corpus composition — {title} (decade → theme → topic)",
         template="plotly_white",
     )
-    fig.update_traces(hovertemplate="<b>%{label}</b><br>papers: %{value}<extra></extra>",
-                      root_color="lightgrey", sort=False)
+    fig.update_traces(
+        hovertemplate="<b>%{label}</b><br>papers: %{value}<extra></extra>",
+        root_color="lightgrey",
+        sort=False,
+    )
     fig.update_layout(margin=dict(t=60, l=10, r=10, b=10), height=760, showlegend=False)
     dest = FIGURES_DIR / f"{NAME}_{scope}.html"
     fig.write_html(str(dest), include_plotlyjs="cdn")
