@@ -128,9 +128,20 @@ var DATA = __DATA__, COLORS = __COLORS__;
 var gd = document.getElementById("{plot_id}");
 var base = JSON.parse(JSON.stringify(gd.layout));
 var mode = "share";
+var dark = false;
+var current = null;  // {group,bucket} of the open drilldown, or null for the hint
 
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function rgba(hex,a){var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return"rgba("+r+","+g+","+b+","+a+")";}
+
+// Light/dark palettes for the custom (non-Plotly) UI — the toggle bar and the
+// drilldown cards — so they track the page theme the figure is embedded in.
+var PAL={
+  light:{barBg:"#f8fafc",barBd:"#e2e8f0",lab:"#64748b",aBg:"#2563eb",aFg:"#fff",iBg:"#fff",iFg:"#374151",
+         hint:"#94a3b8",cardBg:"#f8fafc",cardBd:"#e2e8f0",head:"#1e293b",sub:"#64748b",track:"#e2e8f0"},
+  dark:{barBg:"#2a2a2a",barBd:"#3a3a3a",lab:"#9aa3ad",aBg:"#4a90d9",aFg:"#fff",iBg:"#1e1e1e",iFg:"#cbd5e1",
+        hint:"#9aa3ad",cardBg:"#262626",cardBd:"#3a3a3a",head:"#e6e6e6",sub:"#9aa3ad",track:"#3a3a3a"}};
+function pal(){return dark?PAL.dark:PAL.light;}
 
 function traces(m){return DATA.groups.map(function(g){var c=COLORS[g]||"#94a3b8";return{
   type:"scatter",mode:"lines",stackgroup:"one",hoveron:"points+fills",
@@ -138,38 +149,59 @@ function traces(m){return DATA.groups.map(function(g){var c=COLORS[g]||"#94a3b8"
   hovertemplate:"<b>"+esc(g)+"</b><br>period: %{x}s<br>"+(m==="share"?"share: %{y:.1%}":"papers: %{y}")+"<extra></extra>"};});}
 function layout(m){var y=m==="share"?{title:"Share of papers in period",tickformat:".0%"}:{title:"Papers in period",tickformat:""};
   return Object.assign({},base,{yaxis:Object.assign({},base.yaxis,y)});}
+// Merge dark overrides (page/plot background, font, axes) onto a layout. Light
+// mode returns the layout untouched so the template's own colours show through.
+function themeLayout(l){
+  if(!dark) return l;
+  return Object.assign({},l,{paper_bgcolor:"#1e1e1e",plot_bgcolor:"#1e1e1e",
+    font:Object.assign({},l.font||{},{color:"#e6e6e6"}),
+    xaxis:Object.assign({},l.xaxis||{},{gridcolor:"#333",linecolor:"#555",zerolinecolor:"#333"}),
+    yaxis:Object.assign({},l.yaxis||{},{gridcolor:"#333",linecolor:"#555",zerolinecolor:"#333"})});}
+function render(){Plotly.react(gd,traces(mode),themeLayout(layout(mode)));}
 
 var bar=document.createElement("div");
-bar.style.cssText="display:flex;align-items:center;gap:14px;padding:8px 14px;margin-bottom:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-family:-apple-system,sans-serif;font-size:13px;";
-var lab=document.createElement("span");lab.textContent="Y-axis";lab.style.cssText="color:#64748b;font-weight:600;";
-var grp=document.createElement("span");grp.style.cssText="display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;";
+bar.style.cssText="display:flex;align-items:center;gap:14px;padding:8px 14px;margin-bottom:8px;border:1px solid;border-radius:8px;font-family:-apple-system,sans-serif;font-size:13px;transition:background .2s,border-color .2s;";
+var lab=document.createElement("span");lab.textContent="Y-axis";lab.style.cssText="font-weight:600;";
+var grp=document.createElement("span");grp.style.cssText="display:inline-flex;border:1px solid;border-radius:6px;overflow:hidden;";
+var buttons=[];
 ["Share %","Paper Count"].forEach(function(t,i){var k=i===0?"share":"freq";var b=document.createElement("button");
-  b.textContent=t;b.dataset.mode=k;b.style.cssText="border:none;padding:4px 14px;font-size:13px;cursor:pointer;"+(i===0?"background:#2563eb;color:#fff;":"background:#fff;color:#374151;");
-  b.onclick=function(){mode=k;grp.querySelectorAll("button").forEach(function(x){var a=x.dataset.mode===k;x.style.background=a?"#2563eb":"#fff";x.style.color=a?"#fff":"#374151";});
-    Plotly.react(gd,traces(mode),layout(mode));hint();};grp.appendChild(b);});
+  b.textContent=t;b.dataset.mode=k;b.style.cssText="border:none;padding:4px 14px;font-size:13px;cursor:pointer;";
+  b.onclick=function(){mode=k;styleBar();render();renderPanel();};grp.appendChild(b);buttons.push(b);});
 bar.appendChild(lab);bar.appendChild(grp);gd.parentNode.insertBefore(bar,gd);
+
+function styleBar(){var p=pal();
+  bar.style.background=p.barBg;bar.style.borderColor=p.barBd;grp.style.borderColor=p.barBd;lab.style.color=p.lab;
+  buttons.forEach(function(b){var a=b.dataset.mode===mode;b.style.background=a?p.aBg:p.iBg;b.style.color=a?p.aFg:p.iFg;});}
 
 var panel=document.createElement("div");
 panel.style.cssText="font-family:-apple-system,sans-serif;max-width:1100px;margin:14px auto 0;padding:0 4px;";
 gd.parentNode.insertBefore(panel,gd.nextSibling);
-function hint(){panel.innerHTML="<p style='color:#94a3b8;font-size:0.875rem;margin:0;'>Click any band to see its sub-topics and each one's share of that theme.</p>";}
-hint();
+function renderPanel(){if(current)showPanel(current.group,current.bucket);else hint();}
+function hint(){current=null;var p=pal();panel.innerHTML="<p style='color:"+p.hint+";font-size:0.875rem;margin:0;'>Click any band to see its sub-topics and each one's share of that theme.</p>";}
 
 function showPanel(group,bucket){
-  var e=(DATA.topics[group]||{})[String(bucket)]||[];
-  if(!e.length){panel.innerHTML="<p style='color:#94a3b8;'>No data.</p>";return;}
+  current={group:group,bucket:bucket};
+  var e=(DATA.topics[group]||{})[String(bucket)]||[];var p=pal();
+  if(!e.length){panel.innerHTML="<p style='color:"+p.hint+";'>No data.</p>";return;}
   var c=COLORS[group]||"#94a3b8",tot=e.reduce(function(s,t){return s+t.papers;},0);
-  var h="<div style='border-top:3px solid "+c+";padding-top:12px;'><h3 style='margin:0 0 2px;font-size:1rem;color:#1e293b;'>"+esc(group)+"</h3>"
-    +"<p style='margin:0 0 12px;color:#64748b;font-size:0.8rem;'>"+bucket+"–"+(bucket+4)+" \xb7 "+e.length+" sub-topics \xb7 "+tot+" papers \xb7 each bar = share of this theme</p>"
+  var h="<div style='border-top:3px solid "+c+";padding-top:12px;'><h3 style='margin:0 0 2px;font-size:1rem;color:"+p.head+";'>"+esc(group)+"</h3>"
+    +"<p style='margin:0 0 12px;color:"+p.sub+";font-size:0.8rem;'>"+bucket+"–"+(bucket+4)+" \xb7 "+e.length+" sub-topics \xb7 "+tot+" papers \xb7 each bar = share of this theme</p>"
     +"<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;'>";
-  e.forEach(function(t){var p=(t.share*100).toFixed(1);
-    h+="<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;'>"
-      +"<div style='font-weight:600;font-size:0.85rem;color:#1e293b;line-height:1.3;'>"+esc(t.name)+"</div>"
-      +"<div style='height:6px;border-radius:3px;background:#e2e8f0;margin:6px 0 4px;overflow:hidden;'><div style='height:100%;width:"+p+"%;background:"+c+";'></div></div>"
-      +"<div style='font-size:0.78rem;color:#64748b;'><b style='color:#1e293b;'>"+p+"%</b> of theme \xb7 "+t.papers+" papers</div></div>";});
+  e.forEach(function(t){var pc=(t.share*100).toFixed(1);
+    h+="<div style='background:"+p.cardBg+";border:1px solid "+p.cardBd+";border-radius:6px;padding:10px 12px;'>"
+      +"<div style='font-weight:600;font-size:0.85rem;color:"+p.head+";line-height:1.3;'>"+esc(t.name)+"</div>"
+      +"<div style='height:6px;border-radius:3px;background:"+p.track+";margin:6px 0 4px;overflow:hidden;'><div style='height:100%;width:"+pc+"%;background:"+c+";'></div></div>"
+      +"<div style='font-size:0.78rem;color:"+p.sub+";'><b style='color:"+p.head+";'>"+pc+"%</b> of theme \xb7 "+t.papers+" papers</div></div>";});
   h+="</div></div>";panel.innerHTML=h;panel.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 gd.on("plotly_click",function(ev){var pt=ev.points[0];showPanel(pt.data.name,pt.x);});
+
+// Dark mode is owned by the host page (the site posts {type:"td-dark",on} into
+// the iframe on load and on toggle); repaint the figure + custom UI to match.
+function applyDark(on){dark=!!on;document.body.style.background=dark?"#1e1e1e":"";styleBar();render();renderPanel();}
+window.addEventListener("message",function(ev){if(ev.data&&ev.data.type==="td-dark"){applyDark(ev.data.on);}});
+
+styleBar();hint();
 })();
 """
 
