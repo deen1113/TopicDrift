@@ -97,22 +97,22 @@ var MODES = MODE_DEFS.map(function(m){ return m.key; });
 var LEG_TAB = 24;
 var leg = document.createElement("div");
 leg.id = "leg";
-leg.style.cssText = "position:fixed;left:0;bottom:16px;z-index:900;font-family:sans-serif;font-size:12px;"
+leg.style.cssText = "position:fixed;right:0;top:16px;z-index:900;font-family:sans-serif;font-size:12px;"
   + "display:flex;align-items:stretch;transition:transform .2s ease";
 leg.innerHTML =
-    "<div id='leg-panel' style='width:248px;background:#fff;border:1px solid #ccc;border-left:none;"
+    "<div id='leg-handle' style='width:" + LEG_TAB + "px;display:flex;flex-direction:column;align-items:center;"
+  + "justify-content:center;gap:8px;background:#f4f5f7;border:1px solid #ccc;border-right:none;"
+  + "border-radius:8px 0 0 8px;cursor:pointer;user-select:none'>"
+  + "<span id='leg-caret'>▶</span><span style='writing-mode:vertical-rl;letter-spacing:1px;color:#999;font-size:10px'>KEY</span></div>"
+  + "<div id='leg-panel' style='width:248px;background:#fff;border:1px solid #ccc;border-right:none;"
   + "box-shadow:0 2px 10px rgba(0,0,0,.15);padding:9px 11px'>"
-  + "<b id='leg-title' style='display:block;margin-bottom:6px'>Key</b><div id='leg-body'></div></div>"
-  + "<div id='leg-handle' style='width:" + LEG_TAB + "px;display:flex;flex-direction:column;align-items:center;"
-  + "justify-content:center;gap:8px;background:#f4f5f7;border:1px solid #ccc;border-left:none;"
-  + "border-radius:0 8px 8px 0;cursor:pointer;user-select:none'>"
-  + "<span id='leg-caret'>◀</span><span style='writing-mode:vertical-rl;letter-spacing:1px;color:#999;font-size:10px'>KEY</span></div>";
+  + "<b id='leg-title' style='display:block;margin-bottom:6px'>Key</b><div id='leg-body'></div></div>";
 document.body.appendChild(leg);
 var legOpen = true;
 document.getElementById("leg-handle").addEventListener("click", function(){
   legOpen = !legOpen;
-  leg.style.transform = legOpen ? "translateX(0)" : "translateX(calc(-100% + " + LEG_TAB + "px))";
-  document.getElementById("leg-caret").textContent = legOpen ? "◀" : "▶";
+  leg.style.transform = legOpen ? "translateX(0)" : "translateX(calc(100% - " + LEG_TAB + "px))";
+  document.getElementById("leg-caret").textContent = legOpen ? "▶" : "◀";
 });
 
 function legBar(stops){
