@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: all full install ingest clean enrich enrich-titles enrich-acm enrich-full report topics yearly-topics \
+.PHONY: all full install ingest clean enrich enrich-titles enrich-acm enrich-full report \
         clean-cache dump conf-report conf-scan conf-corpus \
         corpus conf-topics conf-assign-all conf-group conf-apply conf-viz conf-site
 
@@ -47,16 +47,9 @@ conf-report:
 
 conf-scan: dump conf-report
 
-# Build pooled corpus from dump + scan cache (no API calls); prerequisite for `make topics`
+# Build pooled corpus from dump + scan cache (no API calls).
 conf-corpus:
 	$(PYTHON) src/ingest/build_conf_corpus.py
-
-# analysis
-topics:
-	$(PYTHON) src/analysis/topics.py
-
-yearly-topics:
-	$(PYTHON) src/analysis/yearly_topics.py
 
 # ── Multi-conference global pipeline (data/processed/conf_enriched.parquet) ────
 # One global topic space; the website tabs are venue filters over it.
