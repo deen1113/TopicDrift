@@ -15,10 +15,15 @@ global fit; pass --prefix/--config for another set.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
 import yaml
+
+from topicdrift.constants import OUTLIER_TOPIC_ID
+
+log = logging.getLogger(__name__)
 
 CONFIG_PATH = Path("config/topic_groups.conf.yaml")
 PROCESSED_DIR = Path("data/processed")
@@ -118,7 +123,9 @@ def write_registry(
     reg = pd.DataFrame(rows)
     reg.to_parquet(PROCESSED_DIR / f"{prefix}topic_groups.parquet", index=False)
     reg.to_csv(OUTPUTS_TABLES / f"{prefix}topic_groups.csv", index=False)
-    print(f"  wrote {prefix}topic_groups.parquet + {prefix}topic_groups.csv ({len(reg)} groups)")
+    log.info(
+        "  wrote %stopic_groups.parquet + %stopic_groups.csv (%d groups)", prefix, prefix, len(reg)
+    )
     return reg
 
 
@@ -184,7 +191,7 @@ def main(
     label_to_group, group_color, order = build_label_map(groups)
 
     topics = pd.read_parquet(PROCESSED_DIR / f"{prefix}topics.parquet")
-    fitted = topics[topics["topic_id"] != -1].copy()
+    fitted = topics[topics["topic_id"] != OUTLIER_TOPIC_ID].copy()
     validate(label_to_group, set(fitted["llm_label"].astype(str)), config_path.name)
 
     id_to_group = {
@@ -197,9 +204,11 @@ def main(
     topics_out = topics_out.drop(columns=[c for c in ("group_color",) if c in topics_out.columns])
     topics_out["group_color"] = topics_out["group"].map(group_color)
     topics_out.to_parquet(PROCESSED_DIR / f"{prefix}topics.parquet", index=False)
-    print(
-        f"  stamped group into {prefix}topics.parquet "
-        f"({topics_out['group'].notna().sum()}/{len(topics_out)} rows)"
+    log.info(
+        "  stamped group into %stopics.parquet (%d/%d rows)",
+        prefix,
+        topics_out["group"].notna().sum(),
+        len(topics_out),
     )
 
     # 2) {prefix}topics_over_time.parquet (optional)
@@ -207,14 +216,14 @@ def main(
     if tot_path.exists():
         tot = stamp_group_column(pd.read_parquet(tot_path), id_to_group)
         tot.to_parquet(tot_path, index=False)
-        print(f"  stamped group into {prefix}topics_over_time.parquet ({len(tot)} rows)")
+        log.info("  stamped group into %stopics_over_time.parquet (%d rows)", prefix, len(tot))
 
     # 3) {prefix}paper_topics.parquet
     pt_path = PROCESSED_DIR / f"{prefix}paper_topics.parquet"
     if pt_path.exists():
         pt = stamp_group_column(pd.read_parquet(pt_path), id_to_group)
         pt.to_parquet(pt_path, index=False)
-        print(f"  stamped group into {prefix}paper_topics.parquet ({len(pt)} rows)")
+        log.info("  stamped group into %spaper_topics.parquet (%d rows)", prefix, len(pt))
 
     # 4) group registry + 5) report
     group_papers = {
@@ -224,11 +233,13 @@ def main(
 
     md = render_md(groups, fitted, total, title, config_path.name)
     (OUTPUTS_TABLES / f"{prefix}topic_groups.md").write_text(md)
-    print(f"  regenerated {prefix}topic_groups.md ({len(order)} groups, {total:,} papers)")
+    log.info("  regenerated %stopic_groups.md (%d groups, %d papers)", prefix, len(order), total)
 
 
 if __name__ == "__main__":
     import argparse
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--prefix", default="conf_", help="data file prefix, e.g. conf_ or icse_")

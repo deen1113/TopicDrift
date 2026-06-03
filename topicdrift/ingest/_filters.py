@@ -12,9 +12,12 @@ venue, we still need to:
 These run on the per-venue slice, not the whole dump, so cost is negligible.
 """
 
+import logging
 import re
 
 import pandas as pd
+
+log = logging.getLogger(__name__)
 
 # Title-shape signals for proceedings front-matter. Audited against ICSE,
 # every match was a non-research entry; should generalize to other venues.
@@ -57,9 +60,11 @@ def filter_front_matter(df: pd.DataFrame, acronym: str) -> pd.DataFrame:
     title_hit = df["title"].fillna("").str.contains(FRONT_MATTER_TITLE)
     drop = doi_hit | title_hit
     n_drop = int(drop.sum())
-    print(
-        f"  dropped {n_drop} front-matter rows "
-        f"({int(doi_hit.sum())} DOI, {int(title_hit.sum())} title)"
+    log.info(
+        "  dropped %d front-matter rows (%d DOI, %d title)",
+        n_drop,
+        int(doi_hit.sum()),
+        int(title_hit.sum()),
     )
     return df[~drop].reset_index(drop=True)
 
@@ -73,7 +78,7 @@ def deduplicate(df: pd.DataFrame, dupes_path=None) -> pd.DataFrame:
     title_dupes = df[df.duplicated(subset=["title", "year"], keep=False)]
     if not title_dupes.empty and dupes_path is not None:
         title_dupes.sort_values(["year", "title"]).to_csv(dupes_path, index=False)
-        print(f"  wrote {len(title_dupes)} duplicate rows to {dupes_path}")
+        log.info("  wrote %d duplicate rows to %s", len(title_dupes), dupes_path)
 
     n_authors = df["authors"].map(lambda xs: len(xs) if xs is not None else 0)
     df = df.assign(
@@ -82,7 +87,7 @@ def deduplicate(df: pd.DataFrame, dupes_path=None) -> pd.DataFrame:
     ).sort_values(["_has_doi", "_n_authors"], ascending=[False, False])
     df = df.drop_duplicates(subset=["title", "year"], keep="first")
     df = df.drop(columns=["_has_doi", "_n_authors"]).reset_index(drop=True)
-    print(f"  deduplicated: {before} -> {len(df)} rows")
+    log.info("  deduplicated: %d -> %d rows", before, len(df))
     return df
 
 
@@ -92,7 +97,7 @@ def flag_missing(df: pd.DataFrame) -> pd.DataFrame:
     df["has_doi"] = df["doi"].notna()
     missing = int((~df["has_doi"]).sum())
     if len(df):
-        print(f"  papers missing DOI: {missing} ({100 * missing / len(df):.1f}%)")
+        log.info("  papers missing DOI: %d (%.1f%%)", missing, 100 * missing / len(df))
     return df
 
 
@@ -147,12 +152,12 @@ def filter_main_track(df: pd.DataFrame, slug_acronym: str) -> pd.DataFrame:
     (so renamed venues like KBSE → ASE keep both eras of papers).
     """
     if "booktitle" not in df.columns:
-        print("  WARNING: booktitle column missing — main-track filter skipped")
+        log.warning("  WARNING: booktitle column missing — main-track filter skipped")
         return df
     inferred = infer_acronym(df["booktitle"])
     acronyms = {slug_acronym.upper()} | ({inferred} if inferred else set())
     note = f"acronyms={'/'.join(sorted(acronyms))}"
     keep = df["booktitle"].map(lambda bt: any(is_main_track(bt, a) for a in acronyms))
     n_drop = int((~keep).sum())
-    print(f"  dropped {n_drop} non-main-track rows ({note})")
+    log.info("  dropped %d non-main-track rows (%s)", n_drop, note)
     return df[keep].reset_index(drop=True)

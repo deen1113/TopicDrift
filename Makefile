@@ -7,7 +7,20 @@ VENUE  ?= icse
         dump scan \
         venue titles acm venue-deep \
         corpus topics topics-all groups apply figures site analysis \
-        status clean-data
+        zenodo status clean-data
+
+SCOPES          := icse top10 all
+FIGURE_INPUTS   := data/processed/conf_paper_topics.parquet \
+                   data/processed/conf_topics.parquet \
+                   data/processed/conf_topic_groups.parquet
+STREAMGRAPH_OUT := $(foreach s,$(SCOPES),outputs/figures/topic_group_streamgraph_$(s).html)
+TREEMAP_OUT     := $(foreach s,$(SCOPES),outputs/figures/topic_treemap_$(s).html)
+
+$(STREAMGRAPH_OUT): $(FIGURE_INPUTS)
+	$(PYTHON) -m topicdrift.visualization.topic_group_streamgraph
+
+$(TREEMAP_OUT): $(FIGURE_INPUTS)
+	$(PYTHON) -m topicdrift.visualization.topic_treemap
 
 help:  ## Show this help
 	@printf "\nTopicDrift — pipeline targets\n\n"
@@ -23,7 +36,7 @@ help:  ## Show this help
 	@printf "  Scopes live in config/venues.yaml. Each figure target writes one HTML per scope.\n"
 	@awk 'BEGIN{FS=":.*?## "} /^(corpus|topics|topics-all|groups|apply|figures|site|analysis):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\nExtras:\n"
-	@awk 'BEGIN{FS=":.*?## "} /^(status|clean-data):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN{FS=":.*?## "} /^(zenodo|status|clean-data):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\n"
 
 install:  ## Editable install (pip install -e .)
@@ -91,15 +104,36 @@ apply:  ## Stamp groupings into conf_* tables + theme registry
 	$(PYTHON) -m topicdrift.analysis.apply_topic_groups --prefix conf_ \
 		--config config/topic_groups.conf.yaml --title "All Conferences"
 
-figures:  ## Render per-scope figures (one HTML each for icse / top10 / all)
-	$(PYTHON) -m topicdrift.visualization.topic_group_streamgraph
-	$(PYTHON) -m topicdrift.visualization.topic_treemap
+figures: $(STREAMGRAPH_OUT) $(TREEMAP_OUT)  ## Render per-scope figures (skips if up to date)
 
 site: figures  ## figures + copy HTML into docs/visualizations/ for the static site
 	cp outputs/figures/topic_group_streamgraph_*.html docs/visualizations/
 	cp outputs/figures/topic_treemap_*.html docs/visualizations/
 
 analysis: corpus topics groups apply site  ## End-to-end: corpus → topics → groups → apply → site
+
+# ───────── Zenodo deposit ─────────────────────────────────
+# Packages the pipeline outputs that reviewers need to reproduce figures without
+# re-running the full pipeline. Raw caches (DBLP dump, OpenAlex scan) are
+# excluded — they are re-downloadable from source and would bloat the deposit.
+
+ZENODO_STAGING := dist/topicdrift-dataset
+ZENODO_ZIP     := dist/topicdrift-dataset.zip
+
+zenodo: site  ## Package processed data + figures → dist/topicdrift-dataset.zip
+	@rm -rf $(ZENODO_STAGING)
+	@mkdir -p $(ZENODO_STAGING)/data/processed \
+	           $(ZENODO_STAGING)/figures \
+	           $(ZENODO_STAGING)/config
+	@cp data/processed/*.parquet   $(ZENODO_STAGING)/data/processed/
+	@cp outputs/figures/*.html     $(ZENODO_STAGING)/figures/
+	@cp config/topic_groups.conf.yaml $(ZENODO_STAGING)/config/
+	@cp README.md                  $(ZENODO_STAGING)/
+	@cd dist && zip -r topicdrift-dataset.zip topicdrift-dataset/
+	@rm -rf $(ZENODO_STAGING)
+	@printf "  ✓ $(ZENODO_ZIP)  "
+	@du -sh $(ZENODO_ZIP) | awk '{printf "(size: %s)\n", $$1}'
+	@printf "  Upload at: https://zenodo.org/deposit/new\n"
 
 # ───────── Extras / utilities ─────────────────────────────
 

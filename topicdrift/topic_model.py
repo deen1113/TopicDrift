@@ -6,7 +6,7 @@ behind a class so the same machinery can drive the global fit (topics.py) and
 per-year fits (yearly_topics.py) without duplicating code.
 """
 
-import hashlib
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +21,11 @@ from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 from umap import UMAP
 
+
+from topicdrift.constants import OUTLIER_TOPIC_ID
+from topicdrift.utils.cache import make_cache_key
+
+log = logging.getLogger(__name__)
 
 CONFIG_DIR = Path("config")
 LLM_CACHE = Path("data/raw/llm_topic_ratings")
@@ -207,9 +212,12 @@ class TopicModel:
     ) -> list[int]:
         self.model = self.build_model(seed=seed)
         raw_topics, _ = self.model.fit_transform(docs, embeddings=embeddings)
-        n_out_raw = sum(1 for t in raw_topics if t == -1)
-        print(
-            f"  pre-reduce outliers: {n_out_raw}/{len(raw_topics)} ({100 * n_out_raw / len(raw_topics):.1f}%)"
+        n_out_raw = sum(1 for t in raw_topics if t == OUTLIER_TOPIC_ID)
+        log.info(
+            "  pre-reduce outliers: %d/%d (%.1f%%)",
+            n_out_raw,
+            len(raw_topics),
+            100 * n_out_raw / len(raw_topics),
         )
 
         if reduce_outliers and n_out_raw > 0:
@@ -219,9 +227,12 @@ class TopicModel:
                 topics=new_topics,
                 vectorizer_model=make_vectorizer(self.stopwords),
             )
-            n_out_new = sum(1 for t in new_topics if t == -1)
-            print(
-                f"  post-reduce outliers: {n_out_new}/{len(new_topics)} ({100 * n_out_new / len(new_topics):.1f}%)"
+            n_out_new = sum(1 for t in new_topics if t == OUTLIER_TOPIC_ID)
+            log.info(
+                "  post-reduce outliers: %d/%d (%.1f%%)",
+                n_out_new,
+                len(new_topics),
+                100 * n_out_new / len(new_topics),
             )
             self.topics_ = list(new_topics)
         else:
@@ -294,7 +305,7 @@ class TopicModel:
     @staticmethod
     def topic_diversity(topics: pd.DataFrame, top_n: int = 10):
         """Diversity score + per-pair Jaccard overlap table. Used by merge_duplicates."""
-        df = topics[topics["topic_id"] != -1].copy()
+        df = topics[topics["topic_id"] != OUTLIER_TOPIC_ID].copy()
         word_sets = {
             int(r["topic_id"]): set(list(r["top_words"])[:top_n]) for _, r in df.iterrows()
         }
@@ -372,7 +383,7 @@ class TopicModel:
             import torch
             from transformers import pipeline
         except ImportError:
-            print("transformers/torch not installed — skipping LLM labelling")
+            log.warning("transformers/torch not installed — skipping LLM labelling")
             return topics_df
 
         device = (
@@ -380,7 +391,7 @@ class TopicModel:
             if torch.backends.mps.is_available()
             else ("cuda" if torch.cuda.is_available() else "cpu")
         )
-        print(f"\n=== Local-LLM topic labelling ({model_name} on {device}) ===")
+        log.info("\n=== Local-LLM topic labelling (%s on %s) ===", model_name, device)
         gen = pipeline(
             "text-generation",
             model=model_name,
@@ -398,7 +409,7 @@ class TopicModel:
         )
 
         labels = {}
-        for _, t in topics_df[topics_df["topic_id"] != -1].iterrows():
+        for _, t in topics_df[topics_df["topic_id"] != OUTLIER_TOPIC_ID].iterrows():
             tid = int(t["topic_id"])
             top_words = list(t["top_words"])
             words = ", ".join(top_words[:10])
@@ -414,7 +425,7 @@ class TopicModel:
                 tokenize=False,
                 add_generation_prompt=True,
             )
-            h = hashlib.sha1((model_name + prompt).encode()).hexdigest()[:16]
+            h = make_cache_key(model_name + prompt)[:16]
             cache_path = LLM_CACHE / f"label_{h}.txt"
             if cache_path.exists():
                 raw = cache_path.read_text()
@@ -432,7 +443,7 @@ class TopicModel:
             if not label:
                 label = " ".join(w.capitalize() for w in top_words[:2])
             labels[tid] = label
-            print(f"  #{tid:>2} — {label}")
+            log.info("  #%2d — %s", tid, label)
 
         topics_df = topics_df.copy()
         topics_df["llm_label"] = topics_df["topic_id"].map(labels)

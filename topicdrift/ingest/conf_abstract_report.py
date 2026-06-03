@@ -19,24 +19,20 @@ request a slimmed payload (just enough to know if an abstract exists) and cache
 to a separate dir so we don't disturb the richer ICSE enrichment cache.
 """
 
-import hashlib
 import json
+import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import pandas as pd
-import requests
 
-from topicdrift.ingest.enrich_openalex import (
-    MAILTO,
-    MAX_WORKERS,
-    OPENALEX_URL,
-    RateLimiter,
-    _pack_batches,
-    _session,
-)
+from topicdrift.utils.cache import make_cache_key
+from topicdrift.utils.doi import normalize_doi
+from topicdrift.utils.http import MAX_WORKERS, RateLimiter, fetch_openalex_batch, pack_batches
+
+log = logging.getLogger(__name__)
 
 INTERIM_DIR = Path("data/interim")
 TABLES_DIR = Path("outputs/tables")
@@ -71,69 +67,22 @@ _scan_limiter = RateLimiter(SCAN_RATE)
 _budget_exhausted = threading.Event()
 
 
-def _is_budget_error(r: requests.Response) -> bool:
-    return r.status_code == 429 and "budget" in r.text.lower()
-
-
-def _params_slim(dois: list[str]) -> dict:
-    return {
-        "filter": "doi:" + "|".join(dois),
-        "per-page": len(dois),
-        "mailto": MAILTO,
-        "select": SCAN_SELECT,
-    }
-
-
 def _scan_cache_path(dois: list[str]) -> Path:
-    digest = hashlib.sha1("|".join(sorted(dois)).encode()).hexdigest()
-    return OA_SCAN_CACHE / f"{digest}.json"
-
-
-def _sleep_429(r: requests.Response, attempt: int) -> None:
-    """Back off on a 429: honor Retry-After if present, else exponential."""
-    retry_after = r.headers.get("Retry-After")
-    if retry_after and retry_after.isdigit():
-        time.sleep(min(120, int(retry_after)))
-    else:
-        time.sleep(min(60, 2**attempt))
+    return OA_SCAN_CACHE / f"{make_cache_key(dois)}.json"
 
 
 def _fetch_batch_slim(dois: list[str]) -> bool:
-    """Fetch one slim DOI batch and cache it. Returns True if the result is
-    cached (now or already), False if this round's attempts were exhausted (the
-    batch stays uncached and a later round retries it). Bisects on a 400."""
-    if not dois:
-        return True
-    cache = _scan_cache_path(dois)
-    if cache.exists():
-        return True
-    if _budget_exhausted.is_set():
-        return False
-
-    for attempt in range(MAX_ATTEMPTS):
-        _scan_limiter.acquire()
-        try:
-            r = _session().get(OPENALEX_URL, params=_params_slim(dois), timeout=(10, 60))
-        except requests.RequestException:
-            time.sleep(min(60, 2**attempt))
-            continue
-        if r.status_code == 429:
-            if _is_budget_error(r):
-                _budget_exhausted.set()
-                return False
-            _sleep_429(r, attempt)
-            continue
-        if r.status_code == 400 and len(dois) > 1:
-            mid = len(dois) // 2
-            return _fetch_batch_slim(dois[:mid]) and _fetch_batch_slim(dois[mid:])
-        if r.status_code >= 500:
-            time.sleep(min(60, 2**attempt))
-            continue
-        r.raise_for_status()
-        cache.write_text(json.dumps(r.json(), ensure_ascii=False))
-        return True
-
-    return False
+    """Fetch one slim DOI batch and cache it. Returns True if cached (now or
+    already), False on budget exhaustion or exhausted retries."""
+    result = fetch_openalex_batch(
+        dois,
+        SCAN_SELECT,
+        _scan_cache_path,
+        _scan_limiter,
+        max_attempts=MAX_ATTEMPTS,
+        budget_event=_budget_exhausted,
+    )
+    return result is not None
 
 
 def _run_round(pending: list[list[str]]) -> int:
@@ -146,7 +95,7 @@ def _run_round(pending: list[list[str]]) -> int:
             done += 1
             if done % 500 == 0:
                 rate = done / max(time.monotonic() - t0, 1e-6)
-                print(f"    {done:,}/{len(pending):,} ({rate:.1f}/s, {failed:,} failed)")
+                log.info("    %d/%d (%.1f/s, %d failed)", done, len(pending), rate, failed)
     return failed
 
 
@@ -161,11 +110,14 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
 
     Returns (doi->has_abstract, n_cached_batches, n_total_batches)."""
     uniq = sorted({d for d in dois if d})
-    batches = _pack_batches(uniq)
+    batches = pack_batches(uniq)
     n_total = len(batches)
-    print(
-        f"  {len(uniq):,} unique DOIs, {n_total:,} batches, "
-        f"{MAX_WORKERS} workers @ {SCAN_RATE:.0f} req/s"
+    log.info(
+        "  %d unique DOIs, %d batches, %d workers @ %.0f req/s",
+        len(uniq),
+        n_total,
+        MAX_WORKERS,
+        SCAN_RATE,
     )
 
     # Fast path: if the merged summary exists and covers this exact DOI set,
@@ -174,20 +126,20 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
         summary = json.loads(SCAN_SUMMARY.read_text())
         if summary.get("n_total") == n_total and summary.get("n_dois") == len(uniq):
             out: dict[str, bool] = summary["scan"]
-            print(f"  loaded summary cache ({len(out):,} DOIs matched); skipping batch reads")
+            log.info("  loaded summary cache (%d DOIs matched); skipping batch reads", len(out))
             return out, n_total, n_total
 
     for rnd in range(1, MAX_ROUNDS + 1):
         pending = [b for b in batches if not _scan_cache_path(b).exists()]
         if not pending or _budget_exhausted.is_set():
             break
-        print(f"  round {rnd}: {len(pending):,}/{n_total:,} batches to fetch")
+        log.info("  round %d: %d/%d batches to fetch", rnd, len(pending), n_total)
         failed = _run_round(pending)
         if _budget_exhausted.is_set():
             break
         if failed:
             wait = min(120, 30 * rnd)
-            print(f"  round {rnd}: {failed:,} batches failed — pausing {wait}s before retry")
+            log.info("  round %d: %d batches failed — pausing %ds before retry", rnd, failed, wait)
             time.sleep(wait)
 
     leftover = sum(1 for b in batches if not _scan_cache_path(b).exists())
@@ -199,11 +151,11 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
         if not cache.exists():
             continue
         for work in json.loads(cache.read_text()).get("results", []):
-            doi = (work.get("doi") or "").replace("https://doi.org/", "").lower() or None
+            doi = normalize_doi(work.get("doi"))
             if doi:
                 out[doi] = bool(work.get("abstract_inverted_index"))
 
-    print(f"  {n_cached:,}/{n_total:,} batches cached; matched {len(out):,}/{len(uniq):,} DOIs")
+    log.info("  %d/%d batches cached; matched %d/%d DOIs", n_cached, n_total, len(out), len(uniq))
 
     # Persist the merged result so future runs bypass the batch-file scan.
     if n_cached == n_total:
@@ -213,7 +165,7 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
                 ensure_ascii=False,
             )
         )
-        print(f"  wrote summary cache → {SCAN_SUMMARY}")
+        log.info("  wrote summary cache -> %s", SCAN_SUMMARY)
 
     return out, n_cached, n_total
 
@@ -304,7 +256,7 @@ def _write_report(df: pd.DataFrame, ranked: pd.DataFrame, scan: dict[str, bool])
     ]
     dest = REPORTS_DIR / "conf_abstract_hit_rate.md"
     dest.write_text("\n".join(lines))
-    print(f"Wrote {dest}")
+    log.info("Wrote %s", dest)
 
 
 def build_report() -> None:
@@ -312,7 +264,7 @@ def build_report() -> None:
         raise SystemExit(f"Not found: {SRC}. Run `make dump` first.")
 
     df = pd.read_parquet(SRC)
-    print(f"Loaded {len(df):,} conference papers from {SRC}")
+    log.info("Loaded %d conference papers from %s", len(df), SRC)
 
     scan, n_cached, n_total = scan_dois(df["doi"].dropna().tolist())
     if n_cached < n_total:
@@ -327,25 +279,29 @@ def build_report() -> None:
 
     all_path = TABLES_DIR / "conf_abstract_hit_rate_all.csv"
     table.to_csv(all_path, index=False)
-    print(f"Wrote {all_path} ({len(table):,} venues)")
+    log.info("Wrote %s (%d venues)", all_path, len(table))
 
     ranked = table[table["n_total"] >= MIN_VENUE_SIZE].reset_index(drop=True)
     ranked_path = TABLES_DIR / "conf_abstract_hit_rate.csv"
     ranked.to_csv(ranked_path, index=False)
-    print(f"Wrote {ranked_path} ({len(ranked):,} venues >= {MIN_VENUE_SIZE} papers)")
+    log.info("Wrote %s (%d venues >= %d papers)", ranked_path, len(ranked), MIN_VENUE_SIZE)
 
     doi_less = df[df["doi"].isna()][["conf", "dblp_key", "title", "year"]]
     doi_less_path = INTERIM_DIR / "dblp_doi_less.parquet"
     doi_less.to_parquet(doi_less_path, index=False)
     sample_path = TABLES_DIR / "dblp_doi_less_sample.csv"
     doi_less.head(SAMPLE_ROWS).to_csv(sample_path, index=False)
-    print(
-        f"Wrote {doi_less_path} ({len(doi_less):,} DOI-less papers) "
-        f"and {sample_path} (first {min(SAMPLE_ROWS, len(doi_less)):,})"
+    log.info(
+        "Wrote %s (%d DOI-less papers) and %s (first %d)",
+        doi_less_path,
+        len(doi_less),
+        sample_path,
+        min(SAMPLE_ROWS, len(doi_less)),
     )
 
     _write_report(df, ranked, scan)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     build_report()

@@ -26,10 +26,20 @@ Writes: outputs/figures/topic_drift_search.html
 """
 
 import json
+import logging
 
 import plotly.graph_objects as go
 
-from topicdrift.visualization._common import FIGURES_DIR, load_paper_topics, load_topics, load_tot, short_label
+from topicdrift.constants import OUTLIER_TOPIC_ID
+from topicdrift.visualization._common import (
+    FIGURES_DIR,
+    load_paper_topics,
+    load_topics,
+    load_tot,
+    short_label,
+)
+
+log = logging.getLogger(__name__)
 
 NAME = "topic_drift_search"
 
@@ -61,7 +71,7 @@ def build():
 
     # nlargest twice would scan the whole frame per topic; group once instead.
     top_papers = {}
-    for tid, grp in pt[pt["topic_id"] != -1].groupby("topic_id"):
+    for tid, grp in pt[pt["topic_id"] != OUTLIER_TOPIC_ID].groupby("topic_id"):
         rows = grp.nlargest(3, "citation_count")
         top_papers[int(tid)] = [
             {
@@ -76,7 +86,7 @@ def build():
     topic_index = {}
     for _, row in topics.iterrows():
         tid = int(row["topic_id"])
-        if tid == -1:
+        if tid == OUTLIER_TOPIC_ID:
             continue
         sub = tot[tot["topic_id"] == tid].set_index("year_bucket")
         shares = [float(sub["share"].get(b, 0.0)) for b in buckets]
@@ -427,14 +437,15 @@ def plot(buckets, bucket_labels, topic_index):
 
     dest = FIGURES_DIR / f"{NAME}.html"
     fig.write_html(str(dest), include_plotlyjs="cdn", post_script=post)
-    print(f"  wrote {dest}")
+    log.info("  wrote %s", dest)
 
 
 def main():
     buckets, bucket_labels, topic_index = build()
-    print(f"Search index: {len(topic_index)} topics across {len(buckets)} buckets")
+    log.info("Search index: %d topics across %d buckets", len(topic_index), len(buckets))
     plot(buckets, bucket_labels, topic_index)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

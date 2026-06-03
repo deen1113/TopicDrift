@@ -17,6 +17,7 @@ Writes conf_topics.parquet, conf_paper_topics.parquet, conf_topic_centroids.npy
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -24,7 +25,10 @@ import pandas as pd
 import pyarrow.parquet as pq
 import yaml
 
+from topicdrift.constants import OUTLIER_TOPIC_ID
 from topicdrift.topic_model import TopicModel, load_stopwords
+
+log = logging.getLogger(__name__)
 
 INTERIM_DIR = Path("data/interim")
 PROCESSED_DIR = Path("data/processed")
@@ -95,29 +99,29 @@ def fit_topics(
     )
 
     if FIT_EMB.exists() and np.load(FIT_EMB, mmap_mode="r").shape[0] == len(fit_df):
-        print(f"  [cache] {FIT_EMB.name}")
+        log.info("  [cache] %s", FIT_EMB.name)
         embeddings = np.load(FIT_EMB)
     else:
-        print(f"  embedding {len(fit_df):,} fit docs…")
+        log.info("  embedding %d fit docs...", len(fit_df))
         embeddings = embed_docs(fit_df["text"].tolist(), tm.embedder())
         np.save(FIT_EMB, embeddings)
 
-    print(f"\n=== Global fit (seed={seed}, min_topic_size={min_topic_size}) ===")
+    log.info("\n=== Global fit (seed=%d, min_topic_size=%d) ===", seed, min_topic_size)
     topics = tm.fit(fit_df["text"].tolist(), embeddings=embeddings, reduce_outliers=False)
-    n = len(set(topics)) - (1 if -1 in topics else 0)
-    print(f"  → {n} topics")
+    n = len(set(topics)) - (1 if OUTLIER_TOPIC_ID in topics else 0)
+    log.info("  -> %d topics", n)
     groups = tm.merge_duplicates(fit_df["text"].tolist())
     if groups:
         topics = tm.topics_
-        n = len(set(topics)) - (1 if -1 in topics else 0)
-        print(f"  → {n} topics after merging {len(groups)} duplicate groups")
+        n = len(set(topics)) - (1 if OUTLIER_TOPIC_ID in topics else 0)
+        log.info("  -> %d topics after merging %d duplicate groups", n, len(groups))
     return tm, list(topics), embeddings
 
 
 def topic_centroids(embeddings: np.ndarray, topics: list[int]) -> tuple[np.ndarray, list[int]]:
     """Mean (renormalised) embedding per non-outlier topic, ordered by topic_id."""
     topics_arr = np.asarray(topics)
-    ids = sorted(t for t in set(topics) if t != -1)
+    ids = sorted(t for t in set(topics) if t != OUTLIER_TOPIC_ID)
     rows = []
     for tid in ids:
         v = embeddings[topics_arr == tid].mean(axis=0)
@@ -166,7 +170,7 @@ def assign_all(universe: pd.DataFrame, centroids, ids, embedder) -> pd.DataFrame
             rg = rg.assign(topic_id=ids_arr[(emb @ centroids.T).argmax(axis=1)])
             seen += len(rg)
         rg[["dblp_key", "topic_id"]].to_parquet(part, index=False)
-        print(f"  row group {i + 1}/{n_rg}: {seen:,} assigned so far")
+        log.info("  row group %d/%d: %d assigned so far", i + 1, n_rg, seen)
 
     asg = pd.concat(
         [pd.read_parquet(p) for p in sorted(parts_dir.glob("part_*.parquet"))],
@@ -182,7 +186,7 @@ def assign_all(universe: pd.DataFrame, centroids, ids, embedder) -> pd.DataFrame
 def _write_topic_table(info: pd.DataFrame, sizes: pd.Series) -> pd.DataFrame:
     """conf_topics.parquet: topic_id, llm_label, top_words, size (assigned count)."""
     keep = [c for c in ("topic_id", "llm_label", "top_words") if c in info.columns]
-    df = info[info["topic_id"] != -1][keep].copy()
+    df = info[info["topic_id"] != OUTLIER_TOPIC_ID][keep].copy()
     df["size"] = df["topic_id"].map(sizes).fillna(0).astype(int)
     df = df.sort_values("size", ascending=False).reset_index(drop=True)
     df.to_parquet(TOPICS_OUT, index=False)
@@ -194,7 +198,7 @@ def run_fit(args) -> None:
     seed = int(_cfg().get("fit", {}).get("seed", 42))
     universe = pd.read_parquet(UNIVERSE)
     fit_keys = universe.loc[universe["in_fit"], "dblp_key"].tolist()
-    print(f"Loading text for {len(fit_keys):,} fit docs…")
+    log.info("Loading text for %d fit docs...", len(fit_keys))
     fit_df = (
         universe[universe["in_fit"]]
         .merge(load_text(fit_keys), on="dblp_key", how="left")
@@ -207,14 +211,14 @@ def run_fit(args) -> None:
     )
     centroids, ids = topic_centroids(embeddings, topics)
     np.save(CENTROIDS_OUT, centroids)
-    print(f"  {len(ids)} topic centroids → {CENTROIDS_OUT.name}")
+    log.info("  %d topic centroids -> %s", len(ids), CENTROIDS_OUT.name)
 
     info = tm.topic_info()
     if args.no_label:
         info["llm_label"] = info["top_words"].apply(
             lambda w: " ".join(str(x).capitalize() for x in list(w)[:3])
         )
-        print(f"  [no-label] {len(ids)} topics (top-word labels)")
+        log.info("  [no-label] %d topics (top-word labels)", len(ids))
     else:
         fit_pt = fit_df.assign(topic_id=topics)[["dblp_key", "topic_id"]]
         info = tm.label_topics_llm(info, fit_pt, fit_df[["dblp_key", "title"]])
@@ -224,9 +228,9 @@ def run_fit(args) -> None:
     else:
         paper_topics = assign_sample(fit_df, embeddings, centroids, ids)
     paper_topics.to_parquet(PAPER_TOPICS_OUT, index=False)
-    print(f"  wrote {PAPER_TOPICS_OUT.name} ({len(paper_topics):,} rows, mode={args.assign})")
+    log.info("  wrote %s (%d rows, mode=%s)", PAPER_TOPICS_OUT.name, len(paper_topics), args.assign)
     df = _write_topic_table(info, paper_topics.groupby("topic_id").size())
-    print(f"  wrote {TOPICS_OUT.name} ({len(df)} topics)")
+    log.info("  wrote %s (%d topics)", TOPICS_OUT.name, len(df))
 
 
 def run_assign_all() -> None:
@@ -244,8 +248,8 @@ def run_assign_all() -> None:
     sizes = paper_topics.groupby("topic_id").size()
     topics_df["size"] = topics_df["topic_id"].map(sizes).fillna(0).astype(int)
     topics_df.to_parquet(TOPICS_OUT, index=False)
-    print(f"  assigned {len(paper_topics):,} papers to {len(ids)} topics (reused fit)")
-    print(
+    log.info("  assigned %d papers to %d topics (reused fit)", len(paper_topics), len(ids))
+    log.info(
         "  next: `python src/analysis/apply_topic_groups.py --prefix conf_ "
         "--config config/topic_groups.conf.yaml --title 'All Conferences'`"
     )
@@ -281,4 +285,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

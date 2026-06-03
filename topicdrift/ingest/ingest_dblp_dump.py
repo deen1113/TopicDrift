@@ -24,6 +24,7 @@ and its already-seen siblings (the canonical dblp iterparse recipe).
 """
 
 import gzip
+import logging
 import re
 import shutil
 import time
@@ -32,6 +33,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 from lxml import etree
+
+from topicdrift.utils.doi import normalize_doi
+
+log = logging.getLogger(__name__)
 
 RAW_DIR = Path("data/raw")
 INTERIM_DIR = Path("data/interim")
@@ -56,9 +61,9 @@ def _download(url: str, dest: Path, max_attempts: int = 6) -> None:
     """Stream a URL to disk, skipping if cached. Resumes a partial download
     (HTTP Range) and retries with backoff, since the 1 GB .gz fetch is flaky."""
     if dest.exists():
-        print(f"  [cache] {dest.name} ({dest.stat().st_size / 1e9:.2f} GB)")
+        log.info("  [cache] %s (%.2f GB)", dest.name, dest.stat().st_size / 1e9)
         return
-    print(f"  [fetch] {url}")
+    log.info("  [fetch] %s", url)
     tmp = dest.with_suffix(dest.suffix + ".part")
     for attempt in range(max_attempts):
         resume = tmp.stat().st_size if tmp.exists() else 0
@@ -77,15 +82,20 @@ def _download(url: str, dest: Path, max_attempts: int = 6) -> None:
                         f.write(chunk)
                         done += len(chunk)
                         if total:
-                            print(f"\r    {done / 1e9:.2f}/{total / 1e9:.2f} GB", end="")
+                            print(
+                                f"\r    {done / 1e9:.2f}/{total / 1e9:.2f} GB", end="", flush=True
+                            )
             print()
             tmp.rename(dest)
             return
         except requests.RequestException as e:
             wait = min(60, 2**attempt * 5)
-            print(
-                f"\n    download error ({type(e).__name__}) — retrying in {wait}s "
-                f"[{attempt + 1}/{max_attempts}]"
+            log.warning(
+                "\n    download error (%s) — retrying in %ds [%d/%d]",
+                type(e).__name__,
+                wait,
+                attempt + 1,
+                max_attempts,
             )
             time.sleep(wait)
     raise RuntimeError(f"Failed to download {url} after {max_attempts} attempts")
@@ -94,9 +104,9 @@ def _download(url: str, dest: Path, max_attempts: int = 6) -> None:
 def _decompress() -> None:
     """Inflate dblp.xml.gz next to dblp.dtd so lxml can resolve the DTD."""
     if XML_PATH.exists():
-        print(f"  [cache] {XML_PATH.name} ({XML_PATH.stat().st_size / 1e9:.2f} GB)")
+        log.info("  [cache] %s (%.2f GB)", XML_PATH.name, XML_PATH.stat().st_size / 1e9)
         return
-    print(f"  [gunzip] {GZ_PATH.name} -> {XML_PATH.name}")
+    log.info("  [gunzip] %s -> %s", GZ_PATH.name, XML_PATH.name)
     tmp = XML_PATH.with_suffix(".xml.part")
     with gzip.open(GZ_PATH, "rb") as src, open(tmp, "wb") as dst:
         shutil.copyfileobj(src, dst, CHUNK)
@@ -116,7 +126,7 @@ def _doi_and_ee(elem) -> tuple[str | None, str | None]:
         if doi is None:
             m = DOI_RE.search(text)
             if m:
-                doi = m.group(1).strip().lower() or None
+                doi = normalize_doi(m.group(1).strip())
     return doi, first_ee
 
 
@@ -149,7 +159,9 @@ def _parse_inproceedings() -> pd.DataFrame:
                     "url": (
                         (url_el.text or "").strip() if url_el is not None and url_el.text else None
                     ),
-                    "booktitle": (bt_el.text or "").strip() if bt_el is not None and bt_el.text else None,
+                    "booktitle": (bt_el.text or "").strip()
+                    if bt_el is not None and bt_el.text
+                    else None,
                 }
             )
             kept += 1
@@ -160,19 +172,19 @@ def _parse_inproceedings() -> pd.DataFrame:
             del elem.getparent()[0]
 
         if (kept + skipped) % 500_000 == 0:
-            print(f"  scanned {kept + skipped:,} inproceedings ({kept:,} kept)")
+            log.info("  scanned %d inproceedings (%d kept)", kept + skipped, kept)
 
-    print(f"  kept {kept:,} conference papers, skipped {skipped:,}")
+    log.info("  kept %d conference papers, skipped %d", kept, skipped)
     return pd.DataFrame(rows)
 
 
 def build_dump() -> None:
-    print("Downloading DBLP dump...")
+    log.info("Downloading DBLP dump...")
     _download(DBLP_DTD_URL, DTD_PATH)
     _download(DBLP_GZ_URL, GZ_PATH)
     _decompress()
 
-    print("Parsing inproceedings...")
+    log.info("Parsing inproceedings...")
     df = _parse_inproceedings()
     df = df.dropna(subset=["year"])
     df["year"] = df["year"].astype(int)
@@ -180,12 +192,13 @@ def build_dump() -> None:
     df.to_parquet(OUT_PATH, index=False)
     n_conf = df["conf"].nunique()
     doi_cov = 100 * df["doi"].notna().mean()
-    print(f"Wrote {OUT_PATH} ({len(df):,} papers, {n_conf:,} venues, {doi_cov:.1f}% with DOI)")
+    log.info("Wrote %s (%d papers, %d venues, %.1f%% with DOI)", OUT_PATH, len(df), n_conf, doi_cov)
 
     # Reclaim ~4.5 GB; keep the .gz so re-runs skip the download.
     XML_PATH.unlink(missing_ok=True)
-    print(f"  removed {XML_PATH.name} (kept {GZ_PATH.name})")
+    log.info("  removed %s (kept %s)", XML_PATH.name, GZ_PATH.name)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     build_dump()

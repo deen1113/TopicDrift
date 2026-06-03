@@ -15,11 +15,14 @@ Thresholds + fit settings come from config/venues.yaml.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
 import pyarrow.parquet as pq
 import yaml
+
+log = logging.getLogger(__name__)
 
 INTERIM_DIR = Path("data/interim")
 PROCESSED_DIR = Path("data/processed")
@@ -57,7 +60,7 @@ def select() -> None:
     seed = int(fit_cfg.get("seed", 42))
     forced = scope_venues(cfg)
 
-    print(f"Reading {CONF_ENRICHED} (conf, dblp_key, year, has_abstract)…")
+    log.info("Reading %s (conf, dblp_key, year, has_abstract)...", CONF_ENRICHED)
     df = pq.read_table(
         CONF_ENRICHED, columns=["conf", "dblp_key", "year", "has_abstract"]
     ).to_pandas()
@@ -73,18 +76,23 @@ def select() -> None:
 
     qualifies = (stats["n_papers"] >= min_papers) & (stats["abstract_rate"] >= min_rate)
     keep_venues = set(stats.index[qualifies]) | forced
-    print(
-        f"  {len(stats)} venues total; {int(qualifies.sum())} pass "
-        f"(>= {min_papers} papers & >= {min_rate:.0%} abstracts); "
-        f"+{len(forced - set(stats.index[qualifies]))} forced scope venues"
+    log.info(
+        "  %d venues total; %d pass (>= %d papers & >= %.0f%% abstracts); +%d forced scope venues",
+        len(stats),
+        int(qualifies.sum()),
+        min_papers,
+        min_rate * 100,
+        len(forced - set(stats.index[qualifies])),
     )
 
     # Assignment universe = abstract-bearing papers in kept venues.
     uni = df[df["has_abstract"] & df["conf"].isin(keep_venues)][
         ["dblp_key", "conf", "year"]
     ].reset_index(drop=True)
-    print(
-        f"  universe: {len(uni):,} abstract-bearing papers across {uni['conf'].nunique():,} venues"
+    log.info(
+        "  universe: %d abstract-bearing papers across %d venues",
+        len(uni),
+        uni["conf"].nunique(),
     )
 
     # ── Stratified fit sample ────────────────────────────────────────────────
@@ -116,11 +124,13 @@ def select() -> None:
     uni.loc[fit_idx, "in_fit"] = True
 
     uni.to_parquet(UNIVERSE_OUT, index=False)
-    print(
-        f"  fit sample: {int(uni['in_fit'].sum()):,} docs "
-        f"({len(scope_keys):,} scope + {len(tail_idx):,} tail)"
+    log.info(
+        "  fit sample: %d docs (%d scope + %d tail)",
+        int(uni["in_fit"].sum()),
+        len(scope_keys),
+        len(tail_idx),
     )
-    print(f"  wrote {UNIVERSE_OUT}")
+    log.info("  wrote %s", UNIVERSE_OUT)
 
     # ── Per-venue report ─────────────────────────────────────────────────────
     fit_per_venue = uni[uni["in_fit"]].groupby("conf").size().rename("n_fit")
@@ -134,8 +144,9 @@ def select() -> None:
         .reset_index()
     )
     report.to_csv(OUTPUTS_TABLES / "corpus_venues.csv", index=False)
-    print(f"  wrote {OUTPUTS_TABLES / 'corpus_venues.csv'} ({len(report):,} venues)")
+    log.info("  wrote %s (%d venues)", OUTPUTS_TABLES / "corpus_venues.csv", len(report))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     select()

@@ -13,11 +13,16 @@ Columns in output:
 """
 
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
 
-from topicdrift.ingest.enrich_openalex import normalize, reconstruct_abstract
+from topicdrift.ingest._matching import normalize
+from topicdrift.ingest.enrich_openalex import reconstruct_abstract
+from topicdrift.utils.doi import normalize_doi
+
+log = logging.getLogger(__name__)
 
 INTERIM_DIR = Path("data/interim")
 OA_SCAN_CACHE = Path("data/raw/openalex_scan")
@@ -30,7 +35,7 @@ def _build_doi_abstract_map() -> dict[str, str]:
     """Read every scan batch file; return doi (normalized) -> reconstructed abstract."""
     batch_files = [p for p in OA_SCAN_CACHE.glob("*.json") if p.name != "_scan_summary.json"]
     total = len(batch_files)
-    print(f"Reading {total:,} scan batch files...")
+    log.info("Reading %d scan batch files...", total)
     out: dict[str, str] = {}
     for i, path in enumerate(batch_files, 1):
         try:
@@ -38,15 +43,15 @@ def _build_doi_abstract_map() -> dict[str, str]:
         except (json.JSONDecodeError, OSError):
             continue
         for work in data.get("results", []):
-            doi = (work.get("doi") or "").replace("https://doi.org/", "").lower()
+            doi = normalize_doi(work.get("doi"))
             if not doi:
                 continue
             abstract = reconstruct_abstract(work.get("abstract_inverted_index"))
             if abstract:
                 out[doi] = abstract
         if i % 5_000 == 0:
-            print(f"  {i:,}/{total:,} files, {len(out):,} abstracts")
-    print(f"  done: {len(out):,} DOIs with abstract text")
+            log.info("  %d/%d files, %d abstracts", i, total, len(out))
+    log.info("  done: %d DOIs with abstract text", len(out))
     return out
 
 
@@ -55,18 +60,11 @@ def build() -> None:
         raise SystemExit(f"Not found: {SRC}. Run `make dump` first.")
 
     df = pd.read_parquet(SRC)
-    print(f"Loaded {len(df):,} papers from {SRC}")
+    log.info("Loaded %d papers from %s", len(df), SRC)
 
     doi_abstract = _build_doi_abstract_map()
 
-    # Normalize DOIs the same way the scan cache does.
-    doi_norm = (
-        df["doi"]
-        .fillna("")
-        .str.replace("https://doi.org/", "", regex=False)
-        .str.lower()
-        .replace("", None)
-    )
+    doi_norm = df["doi"].map(normalize_doi)
     df["abstract"] = doi_norm.map(doi_abstract)
     df["has_abstract"] = df["abstract"].fillna("").str.len() > 0
     df["text"] = (df["title"].map(normalize) + " " + df["abstract"].map(normalize)).str.strip()
@@ -74,11 +72,15 @@ def build() -> None:
     out = df[["conf", "dblp_key", "title", "year", "doi", "abstract", "has_abstract", "text"]]
     out.to_parquet(DEST, index=False)
     n_with = int(df["has_abstract"].sum())
-    print(
-        f"Wrote {DEST} ({len(out):,} rows, {n_with:,} with abstract, "
-        f"{100 * n_with / len(out):.1f}% coverage)"
+    log.info(
+        "Wrote %s (%d rows, %d with abstract, %.1f%% coverage)",
+        DEST,
+        len(out),
+        n_with,
+        100 * n_with / len(out),
     )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     build()

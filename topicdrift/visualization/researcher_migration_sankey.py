@@ -37,12 +37,14 @@ Reads:  data/processed/icse_paper_topics.parquet, data/processed/icse_topics.par
 Writes: outputs/figures/researcher_migration_sankey.html
 """
 
+import logging
 from collections import Counter, defaultdict
 
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
+from topicdrift.constants import OUTLIER_TOPIC_ID
 from topicdrift.visualization._common import (
     clean_author,
     load_paper_topics,
@@ -50,6 +52,8 @@ from topicdrift.visualization._common import (
     save,
     topic_labels,
 )
+
+log = logging.getLogger(__name__)
 
 NAME = "researcher_migration_sankey"
 TOP_K = 12  # restrict to the K largest topics for legibility
@@ -83,7 +87,7 @@ def build():
 
     top_ids = [
         int(t)
-        for t in topics_tbl[topics_tbl["topic_id"] != -1]
+        for t in topics_tbl[topics_tbl["topic_id"] != OUTLIER_TOPIC_ID]
         .sort_values("size", ascending=False)
         .head(TOP_K)["topic_id"]
     ]
@@ -136,7 +140,8 @@ def plot(flows, buckets, top_ids, labels):
     transitions = [b for b in buckets if b in flows]
     timeline = sorted({b for b in transitions} | {b + BUCKET for b in transitions})
     col = {b: i for i, b in enumerate(timeline)}
-    yof = lambda t: n_topics - 1 - rank[t]  # oldest topic on top
+    def yof(t):
+        return n_topics - 1 - rank[t]  # oldest topic on top
 
     # node researcher counts = max of flow in / flow out (how many pass through)
     out_sum, in_sum, present = defaultdict(int), defaultdict(int), set()
@@ -480,13 +485,17 @@ def main():
     flows, buckets, top_ids, labels = build()
     moved = sum(v for c in flows.values() for (s, t), v in c.items() if s != t)
     stayed = sum(v for c in flows.values() for (s, t), v in c.items() if s == t)
-    print(
-        f"Migration timeline: {len(flows)} windows, "
-        f"{sum(len(c) for c in flows.values())} flows (>= {MIN_AUTHORS} researchers) — "
-        f"{stayed} stayed, {moved} migrated"
+    log.info(
+        "Migration timeline: %d windows, %d flows (>= %d researchers) — %d stayed, %d migrated",
+        len(flows),
+        sum(len(c) for c in flows.values()),
+        MIN_AUTHORS,
+        stayed,
+        moved,
     )
     plot(flows, buckets, top_ids, labels)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

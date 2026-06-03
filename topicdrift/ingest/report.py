@@ -13,11 +13,15 @@ a spreadsheet:
   - sort newest-first, with abstract-present rows on top within each year
 """
 
-import re
+import logging
 import sys
 from pathlib import Path
 
 import pandas as pd
+
+from topicdrift.utils.text import clean_markup
+
+log = logging.getLogger(__name__)
 
 INTERIM_DIR = Path("data/interim")
 OUTPUTS_TABLES = Path("outputs/tables")
@@ -34,16 +38,6 @@ PREVIEW_COLUMNS = [
     "doi",
     "has_abstract",
 ]
-
-_TAG_RE = re.compile(r"<[^>]+>")
-_WS_RE = re.compile(r"\s+")
-
-
-def _clean_abstract(text) -> str:
-    if not text:
-        return ""
-    s = _TAG_RE.sub(" ", str(text))
-    return _WS_RE.sub(" ", s).strip()
 
 
 def _join_list(value) -> str:
@@ -62,7 +56,7 @@ def build_report(venue_key: str) -> None:
         raise SystemExit(f"Not found: {src}. Run `make venue VENUE={venue_key}` first.")
 
     df = pd.read_parquet(src)
-    print(f"Loaded {len(df)} rows from {src}")
+    log.info("Loaded %d rows from %s", len(df), src)
 
     out = df.rename(columns={"oa_concepts": "keywords"}).copy()
     out = out[[c for c in PREVIEW_COLUMNS if c in out.columns]]
@@ -74,15 +68,16 @@ def build_report(venue_key: str) -> None:
     out["authors"] = out["authors"].apply(_join_list)
     if "keywords" in out.columns:
         out["keywords"] = out["keywords"].apply(_join_list)
-    out["abstract"] = out["abstract"].apply(_clean_abstract)
+    out["abstract"] = out["abstract"].apply(clean_markup)
 
     dest = OUTPUTS_TABLES / f"{venue_key}_papers_preview.csv"
     out.to_csv(dest, index=False)
     pct = 100 * out["has_abstract"].mean() if "has_abstract" in out.columns else 0
-    print(f"Wrote {dest} ({len(out)} rows, {pct:.1f}% with abstracts)")
+    log.info("Wrote %s (%d rows, %.1f%% with abstracts)", dest, len(out), pct)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     venues = sys.argv[1:] or ["icse"]
     for v in venues:
         build_report(v)

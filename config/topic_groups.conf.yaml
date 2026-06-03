@@ -3,215 +3,207 @@
 # Editable: move labels between themes, then run apply_topic_groups.py.
 
 groups:
-- name: System Design
-  color: '#9333ea'
-  topics:
-  - Reverse Engineering
-  - Controller Tuning
-  - Reverse Orient Code
-  - Healthcare Integration Tech
-  - Resource Efficient Allocation
-  - Parallel Algorithm Design
-  - Service Oriented Architecture
-  - Dynamic Reconfiguration
-  - Optimize Big Data
-  - Gait Analysis Robot
-  - Congestion Control Models
-  - Optimization Algorithms
-  - Memory Interleaving
-  - Graph Optimization
-  - Sweeping Optimization
-  - Optimized Data Processing
-  - Clock Domain Crossing
-  - Network Automation
-  - Knowledge Mechanisms
-  - Holonic Manufacturing Systems
-  - Harmonic Aware Scheduling
-  - Selfadaptability Systems
-  - Data Migration Strategies
-  - Agent Interaction Framework
-  - Color Gamut Mapping
-  - Radar Signal Processing
-  - Multiplier Optimization
-  - Vegetation Water Soil
-  - Optical Network Enhancements
-  - Low Power Oscillator
-  - Optical Network Flexibility
-  - Optimal Simplification
-  - Adaptive Routing Tori
-  - Polynomial System Solving
-  - Microstrip Antenna Optimization
-  - Optimized Noctopics
-  - Stochastic Reachability Analysis
-  - Optical Circuit Innovations
-  - Software Quality Assurance
-  - Microservice Integration
-  - Digital Twin Integration
 - name: AI for Software Engineering
   color: '#0d9488'
   topics:
-  - Entity Linking
-  - Energy Efficient Neural
-  - Optimized Segmentation
-  - Dynamic Agent Navigation
-  - Depth Sensor Calibration
-  - Sentiment Analysis
-  - Safely Autonomous Veh
-  - Face Emotion Analysis
-  - Multimodal Search
-  - Optimized Intra Prediction
-  - Enhanced Collaborative Filtering
-  - Graph Neural Network
-  - Optimization Techniques
-  - Image Denoising Enhancement
-  - Spatiotemporal Analytics
-  - Optimized Routing Systems
-  - Handwritten Text Analysis
-  - Adversarial Defense Research
-  - Skeleton-based Estimation
-  - Soft Actuator Design
-  - Crop Health Analysis
+  - Semantic Role Labeling
+  - Segmentation Algorithms
+  - Smooth Path Robot
+  - Facial Attribute Extraction
+  - Depth Perception Enhancement
+  - Temporal Pose Estimation
+  - Kinematic Rehabilitation
+  - Optimized Neural Models
+  - Voice Enhancement Techniques
+  - Image Enhancement Techniques
+  - Sentiment Extraction
+  - Multiobjective Evolutionary Algorithms
+  - Twisted Modular Hand
+  - Recommender Integration
+  - Gameplay Analysis
+  - Value-aware Active Learning
+  - Dynamic Fleet Management
+  - Syllable Recognition Enhancements
   - Brain Signal Analysis
-  - Voiceprint Enhancement
-  - Gaze Tracking Analysis
+  - Graph Homomorphism
+  - Adversarial Detection Enhancement
+  - Document Character Extraction
+  - Graph Neural Networks
   - Neuromorphic Computing
-  - System Bias Mitigation
-  - Steganographic Techniques
-  - Directional Label Diffusion
-  - Stock Price Prediction
-  - Speech Recognition Enhancements
-  - Optimization Flux
-  - Hesitant Fuzzy Logic
-  - Speech Noise Mitigation
-  - Behavior Modeling
+  - Gaze Interaction Analysis
+  - Fuzzy Linguistic Modeling
+  - Crop Disease Detection
+  - Spatiotemporal Forecasting
+  - Brain Connectivity Study
+  - Volatility Forecasting
   - Gesture Sign Recognition
-  - Resting State Analysis
-  - Memristor Integration
-  - Predict Epidemic Spread
-  - Algorithmic Bias Mitigation
-- name: Program Correctness
-  color: '#2563eb'
+  - Infectious Disease Modeling
+  - Mitigating Bias
+  - Vegetation Health Assessment
+  - Superresolution Estimation
+  - Stochastic Systems Biology
+  - Sparse Reconstruction
+  - Robotic Perception
+  - Feature Selection Efficiency
+  - Robust Particle Filter
+  - Enhanced Gene Analysis
+  - Hyperspectral Unmixing
+  - Fuzzy Rule Mining
+  - Credit Risk Modeling
+  - Feature Selection
+- name: System Design
+  color: '#9333ea'
   topics:
-  - Equality Saturation
-  - Lazy Abstraction
-  - Android Malware Detection
-  - Dynamic Points-to Data
-  - Concurrent Bug Detection
-  - Safety Assurance Systems
-  - Blockchain Security
-  - Secure Execution
-  - Secure Cloud Computing
-  - Optimized Decoding
-  - Secure Network Protocols
-  - Optimistic Locking
-  - Passwordless Login
-  - Loop-extended Execution
-  - Puf Attack Resistance
-  - Compiler Optimization Techniques (2)
-  - Quantum Integration Challenges
-  - Message Life Spacies
-  - Policy Adaptation
-  - Aspect Oriented Programming
-  - Grammar Synthesis
-  - Fast Conservative
-  - Differential Privacy Queries
-  - Phishing Detection
-  - Legal Argument Extraction
-  - Float Precision Analysis
-  - Spreadsheets Analysis
+  - Nonlinear Control Analysis
+  - Healthcare Integration
+  - P4 Optimization
+  - Inverter Stability Enhancement
+  - Resource Balancing
+  - Segmented Bus
+  - Parallel Optimization
+  - Graph Optimization
+  - Optimized Tsv Routing
+  - Cache Disturbance Minimization
+  - Service Oriented Architecture
+  - Network Scalability
+  - Gamut Mapping Studies
+  - Txcache Enhancement
+  - Dynamic Scheduling
+  - Optimized Cloud Deployment
+  - Clock Jitter Analysis
+  - Sensorless Control
+  - Optical Network Enhancements
+  - Domain Transformation
+  - Optical Network Flexibility
+  - Convex Hull Optimization
+  - Switch Fabric Optimization
+  - Reverse Engineer Patterns
+  - Optimized Noc Routing
+  - Dynamic Adaptation
+  - Software Quality Assurance
+  - Adls Guided Design
+  - Digital Twin Integration
+  - Microservice Integration
+  - Memristive Integration
+  - Enterprise Architecture Influence
+  - Fault Tolerance Middleware
+  - Microsensor Fabrication
+  - Optical Integration Advances
+  - Low Power Analog
+  - Voltage Stress Testing
+  - Optimized Multipliers
+  - Combinatorial Auctions
 - name: Emerging Platforms
   color: '#e11d48'
   topics:
-  - Iot Context Device
-  - Mesh Network Optimization
-  - Channel Estimation Techniques
-  - Optimized Hetnet Coordination
-  - Digital Marketplace Integration
-  - Peer Qoe Enhancement
-  - Signal Enhancement
-  - Signal Enhancement (2)
-  - Smart Grid Forecast
-  - Ddos Defense Enhancement
-  - Haptic Interface Design
-  - Fall Detection Sensor
-  - Iot Water Sensor
-  - Optimized Routing
-  - High Speed Amplifiers
-  - Sparse Recovery Algorithms
-  - Spectrum Sensing Enhancement
-  - Optimized Relay Networks
-  - Location Privacy Protection
+  - Adaptive Routing Metrics
+  - Cellular Interference Mitigation
+  - Heart Health Monitor
+  - Node Localization
+  - Iot Security
+  - Ddos Mitigation
+  - Gaussian Interference Relay
+  - Predictive Mobility Models
+  - Fall Detection
+  - Optimized Swarm Networking
+  - Spectrum Secondary Sense
+  - Iot Sensors Env
+  - Energy Efficient Apps
+  - Optimized Amplifier Designs
+  - Smartsec
   - Smart City Integration
-  - Collision Detection
+  - Tag Conflict Mitigation
+  - Wideband Antenna Design
+  - Massive Mimo Security
+  - Fpga Decoder Design
+- name: Program Correctness
+  color: '#2563eb'
+  topics:
+  - Secure Cloud Computing
+  - Secure Network Protocols
+  - Blockchain Scalability
+  - Quantitative Verification
+  - Type Equivalence
+  - Safety Assurance Tech
+  - Quantum Hybrid Algorithms
+  - Optimizing Concurrent Bugs
+  - Differential Privacy Preserve
+  - Static Analysis Enhancements
+  - Legal Case Analysis
+  - Phishing Detection
+  - Grammar Comparison
+  - Slice Dependence Graph
+  - Aspect Integration Enhancements
+  - Symbolic Path Analysis
+  - Secure Federated Learning
+  - Advanced Malware Detection
+  - Steganalysis Analysis
+  - Stochastic Petri Net
+  - Bit Complexity Equations
+  - Fingerprint Security
+  - Watermark Security Analysis
 - name: Defect Management
   color: '#ea580c'
   topics:
-  - Sequence Annotation Tools
-  - Predictive Equipment Maintenance
-  - Multirobot Slam
-  - Execution-free Program Repair
-  - Svm Imbalance Handling
-  - Eclipse Bug Prioritization
-  - Dynamic Fault Tolerance
-  - Defect Prediction Project
-  - Density Guided Clustering
-  - Fault Identification Machinery
-  - Object Tracking Enhancement
-  - Anomaly Detection Systems
-  - Attribute Reduction
+  - Predictive Maintenance
+  - Fault Injection Testing
+  - Fault Detection Machinery
+  - Anomaly Series Analysis
+  - Graph Trace Analysis
+  - Defect Prediction Models
+  - Dependency Mining
+  - Crowdsourced Triage
   - Fault Spectrum Analysis
-  - Build Failure Analysis
-  - Fault Diagnosis
-  - Biometric Security Enhancements
-  - Hyperspectral Analysis
-  - Log Insight Enhancement
-  - Credit Fraud Mitigation
-  - Granular Computing Advances
-- name: Developer Tooling
-  color: '#d97706'
-  topics:
-  - Code Smell Detection
-  - Student Performance Prediction
-  - Interactive Analytics
-  - Compiler Optimization Techniques
-  - Code Synthesis
-  - Code Search Enhancement
-  - Clone Analysis
+  - Code Evolution
+  - Build Error Analysis
+  - Dependency Risk Analysis
+  - Log Analysis Enhancements
 - name: Human Factors in Software Engineering
   color: '#16a34a'
   topics:
-  - Interactive Ar Experiences
-  - Emotional Expression
-  - Game Theory Models
-  - Interactive Soundscapes
-  - Inclusive Design Teams
-  - Accessible Tech Education
-  - Ethical Ai
-  - Crowd Advisory
-- name: Software Testing
-  color: '#0891b2'
+  - Virtual Haptics Integration
+  - Humanrobot Interaction
+  - User Experience Design
+  - Diversity Engineering
+  - Ethics Ai Ethics
+  - Crowd Quality Assurance
+  - Interactive Shading Models
+  - Enhancing Diversity Outreach
+- name: Developer Tooling
+  color: '#d97706'
   topics:
-  - Fault Prediction Models
-  - Low Power Design
-  - Crawling Efficiency
-  - Automated Web Security
-  - Coverage Enhancement
-  - Dependency Freshness
-  - Metamorphic Testing
+  - Optimized Encoding Techniques
+  - Interactive Analytics
+  - Clone Detection
+  - Justin Tuning
+  - Code Semantics
+  - App Review Insights
+  - Code Element Recommendations
+  - Coca Debugger
+  - Software Data Analysis
+  - Spreadsheets Analysis
 - name: Requirements Engineering
   color: '#65a30d'
   topics:
-  - Goal Oriented Design
-  - Xml Schema Validation
-  - Optical Detection Systems
-  - Managing Variation
-  - Natural Language Enhancement
-  - Privacy Frameworks Compliance
-  - Traceability Analysis
+  - Ontology Integration
+  - Xml Schema Reformulation
+  - Regulatory Adherence
+  - Natural Lang Req
+  - Intelligent Trace
+  - Semantic Web Crawling
+- name: Software Testing
+  color: '#0891b2'
+  topics:
+  - Automated Regression Testing
+  - Search Heuristics
+  - Automated Program Repair
+  - Metamorphic Reliability
 - name: Software Process
   color: '#4f46e5'
   topics:
-  - Process Integration
-  - Modeling Maintenance Requests
-  - Effort Prediction Models
+  - Knowledge Integration
+  - Workflow Integration
+  - Effort Prediction
+  - Software Health Management
   - Technical Debt Management
+  - Service Oriented Garbage

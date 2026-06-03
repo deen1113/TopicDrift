@@ -38,79 +38,42 @@ and the GET URL must stay under 4094 bytes, so batches are packed to both limits
 Raw responses cached under data/raw/openalex/.
 """
 
-import hashlib
 import json
-import re
-import threading
+import logging
 import time
-import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from urllib.parse import urlencode
 
 import pandas as pd
-import requests
+
+from topicdrift.ingest._matching import (
+    _loose_title_match,
+    _recompute_text_fields,
+    _strict_title_match,
+)
+from topicdrift.utils.cache import make_cache_key
+from topicdrift.utils.doi import normalize_doi
+from topicdrift.utils.http import (
+    MAILTO,
+    MAX_WORKERS,
+    OPENALEX_URL,
+    SELECT_FIELDS,
+    RateLimiter,
+    fetch_openalex_batch,
+    get_session,
+    pack_batches,
+)
+
+log = logging.getLogger(__name__)
 
 INTERIM_DIR = Path("data/interim")
 OA_CACHE = Path("data/raw/openalex")
 OA_CACHE.mkdir(parents=True, exist_ok=True)
 
-OPENALEX_URL = "https://api.openalex.org/works"
-MAILTO = "maaseide.m@northeastern.edu"
-MAX_URL_LEN = 4080  # OpenAlex rejects above 4094 bytes
-MAX_DOIS = 100  # OpenAlex doi filter value cap
 MAX_REQUESTS_PER_SEC = 10
-MAX_WORKERS = 16
 CONCEPT_MIN_SCORE = 0.3
-SELECT_FIELDS = (
-    "id,doi,display_name,publication_year,abstract_inverted_index,concepts,cited_by_count,type"
-)
-
-LATEX = re.compile(r"\$[^$]*\$")
-HTML = re.compile(r"<[^>]+>")
-WS = re.compile(r"\s+")
-
-# DBLP often prepends "On"/"On a"/"On the" to titles that OpenAlex stores
-# without. Strip these (and bare articles) so the loose matcher can equate them.
-LEADING_ARTICLES = re.compile(r"^(?:on\s+(?:a\s+|an\s+|the\s+)?|a\s+|an\s+|the\s+)+")
-
-_thread_local = threading.local()
-
-
-class RateLimiter:
-    """Spaces calls across all threads to honor the polite-pool req/s cap."""
-
-    def __init__(self, rate: float) -> None:
-        self._interval = 1.0 / rate
-        self._lock = threading.Lock()
-        self._next = 0.0
-
-    def acquire(self) -> None:
-        with self._lock:
-            now = time.monotonic()
-            wait = self._next - now
-            if wait > 0:
-                time.sleep(wait)
-                now += wait
-            self._next = now + self._interval
-
 
 _rate_limiter = RateLimiter(MAX_REQUESTS_PER_SEC)
-
-
-def _session() -> requests.Session:
-    if not hasattr(_thread_local, "session"):
-        _thread_local.session = requests.Session()
-    return _thread_local.session
-
-
-def normalize(text: str | None) -> str:
-    """Lowercase, drop LaTeX/HTML, collapse whitespace; "" for non-strings."""
-    if not isinstance(text, str):
-        return ""
-    s = unicodedata.normalize("NFKC", text)
-    s = HTML.sub(" ", LATEX.sub(" ", s))
-    return WS.sub(" ", s.lower()).strip()
 
 
 def reconstruct_abstract(inv_index: dict | None) -> str | None:
@@ -121,40 +84,12 @@ def reconstruct_abstract(inv_index: dict | None) -> str | None:
     return " ".join(w for _, w in positions) or None
 
 
-def _params(dois: list[str]) -> dict:
-    return {
-        "filter": "doi:" + "|".join(dois),
-        "per-page": len(dois),
-        "mailto": MAILTO,
-        "select": SELECT_FIELDS,
-    }
-
-
-def _url_len(dois: list[str]) -> int:
-    return len(OPENALEX_URL) + 1 + len(urlencode(_params(dois)))
-
-
-def _pack_batches(dois: list[str]) -> list[list[str]]:
-    """Greedy pack: ≤ MAX_DOIS values and encoded URL ≤ MAX_URL_LEN per call."""
-    batches, batch = [], []
-    for doi in dois:
-        if batch and (len(batch) == MAX_DOIS or _url_len(batch + [doi]) > MAX_URL_LEN):
-            batches.append(batch)
-            batch = []
-        batch.append(doi)
-    if batch:
-        batches.append(batch)
-    return batches
-
-
 def _cache_path(dois: list[str]) -> Path:
-    digest = hashlib.sha1("|".join(sorted(dois)).encode()).hexdigest()
-    return OA_CACHE / f"{digest}.json"
+    return OA_CACHE / f"{make_cache_key(dois)}.json"
 
 
 def _title_cache_path(title: str, year: int) -> Path:
-    digest = hashlib.sha1(f"{title}|{year}".encode()).hexdigest()
-    return OA_CACHE / f"title_{digest}.json"
+    return OA_CACHE / f"title_{make_cache_key(f'{title}|{year}')}.json"
 
 
 def _oa_title_params(title: str, year: int) -> dict:
@@ -167,59 +102,16 @@ def _oa_title_params(title: str, year: int) -> dict:
     }
 
 
-def _strict_title_match(title: str, year: int, work: dict) -> bool:
-    if work.get("publication_year") != year:
-        return False
-    work_title = work.get("display_name") or ""
-    return normalize(work_title) == normalize(title)
-
-
-def _loose_key(text: str | None) -> str:
-    """normalize(), strip punctuation, then strip leading articles (DBLP-style
-    "On"/"On the" prefixes) so trivially-different titles compare equal."""
-    s = WS.sub(" ", re.sub(r"[^a-z0-9 ]", " ", normalize(text))).strip()
-    return LEADING_ARTICLES.sub("", s)
-
-
-def _loose_title_match(title: str, year: int, work: dict) -> bool:
-    """Punctuation-insensitive title equality within +/-1 year (recovers year
-    drift and trailing-punctuation differences that strict matching rejects)."""
-    work_year = work.get("publication_year")
-    if work_year is None or abs(work_year - year) > 1:
-        return False
-    return _loose_key(work.get("display_name")) == _loose_key(title)
-
-
 def _fetch_batch(dois: list[str]) -> list[dict]:
-    """Fetch one batch, caching raw results. Bisects on an unexpected 400."""
-    if not dois:
-        return []
-
-    cache = _cache_path(dois)
-    if cache.exists():
-        return json.loads(cache.read_text()).get("results", [])
-
-    for attempt in range(4):
-        _rate_limiter.acquire()
-        r = _session().get(OPENALEX_URL, params=_params(dois), timeout=30)
-        if r.status_code == 429:
-            time.sleep(3 * 2**attempt)
-            continue
-        if r.status_code == 400 and len(dois) > 1:
-            mid = len(dois) // 2
-            return _fetch_batch(dois[:mid]) + _fetch_batch(dois[mid:])
-        r.raise_for_status()
-        data = r.json()
-        cache.write_text(json.dumps(data, ensure_ascii=False))
-        return data.get("results", [])
-
-    print(f"  giving up on batch of {len(dois)} after repeated 429s")
-    return []
+    result = fetch_openalex_batch(dois, SELECT_FIELDS, _cache_path, _rate_limiter)
+    if result is None:
+        raise RuntimeError(f"Batch of {len(dois)} DOIs failed after repeated 429s")
+    return result
 
 
 def parse_work(work: dict) -> dict:
     return {
-        "doi": (work.get("doi") or "").replace("https://doi.org/", "").lower() or None,
+        "doi": normalize_doi(work.get("doi")),
         "abstract": reconstruct_abstract(work.get("abstract_inverted_index")),
         "oa_concepts": [
             c["display_name"]
@@ -242,7 +134,7 @@ def _fetch_title_one(idx: int, title: str, year: int) -> tuple[int, dict | None,
         data = {"results": []}
         for attempt in range(4):
             _rate_limiter.acquire()
-            r = _session().get(OPENALEX_URL, params=_oa_title_params(title, year), timeout=30)
+            r = get_session().get(OPENALEX_URL, params=_oa_title_params(title, year), timeout=30)
             if r.status_code == 429:
                 time.sleep(3 * 2**attempt)
                 continue
@@ -251,8 +143,7 @@ def _fetch_title_one(idx: int, title: str, year: int) -> tuple[int, dict | None,
             cache.write_text(json.dumps(data, ensure_ascii=False))
             break
         else:
-            print(f"  giving up on title lookup [{year}] {title[:60]!r}")
-            return idx, None, None
+            raise RuntimeError(f"Title lookup [{year}] {title[:60]!r} failed after repeated 429s")
 
     results = data.get("results", [])
     for work in results:
@@ -260,10 +151,13 @@ def _fetch_title_one(idx: int, title: str, year: int) -> tuple[int, dict | None,
             return idx, parse_work(work), "strict"
     for work in results:
         if _loose_title_match(title, year, work):
-            print(
-                f"  LOOSE MATCH: dblp[{year}] {title[:55]!r} <- "
-                f"oa[{work.get('publication_year')}] "
-                f"{(work.get('display_name') or '')[:55]!r} ({work.get('id')})"
+            log.info(
+                "LOOSE MATCH: dblp[%d] %r <- oa[%s] %r (%s)",
+                year,
+                title[:55],
+                work.get("publication_year"),
+                (work.get("display_name") or "")[:55],
+                work.get("id"),
             )
             return idx, parse_work(work), "loose"
     return idx, None, None
@@ -274,7 +168,7 @@ def fetch_by_titles(rows: list[tuple[int, str, int]]) -> dict[int, dict]:
     if not rows:
         return {}
 
-    print(f"  {len(rows)} rows in title pass, {MAX_WORKERS} workers")
+    log.info("  %d rows in title pass, %d workers", len(rows), MAX_WORKERS)
     t0 = time.monotonic()
     out: dict[int, dict] = {}
     strict_n = loose_n = 0
@@ -287,17 +181,25 @@ def fetch_by_titles(rows: list[tuple[int, str, int]]) -> dict[int, dict]:
                 strict_n += kind == "strict"
                 loose_n += kind == "loose"
 
-    print(
-        f"  matched {len(out)}/{len(rows)} titles "
-        f"({strict_n} strict, {loose_n} loose) in {time.monotonic() - t0:.1f}s"
+    log.info(
+        "  matched %d/%d titles (%d strict, %d loose) in %.1fs",
+        len(out),
+        len(rows),
+        strict_n,
+        loose_n,
+        time.monotonic() - t0,
     )
     return out
 
 
 def _empty_enrichment() -> dict:
-    empty = {f: None for f in ("abstract", "citation_count", "openalex_id", "oa_type")}
-    empty["oa_concepts"] = []
-    return empty
+    return {
+        "abstract": None,
+        "citation_count": None,
+        "openalex_id": None,
+        "oa_type": None,
+        "oa_concepts": [],
+    }
 
 
 def _apply_enrichment(out: pd.DataFrame, idx: int, data: dict) -> None:
@@ -305,11 +207,6 @@ def _apply_enrichment(out: pd.DataFrame, idx: int, data: dict) -> None:
         out.at[idx, col] = data.get(col)
     if data.get("doi"):
         out.at[idx, "doi"] = data["doi"]
-
-
-def _recompute_text_fields(out: pd.DataFrame) -> None:
-    out["has_abstract"] = out["abstract"].fillna("").str.len() > 0
-    out["text"] = (out["title"].map(normalize) + " " + out["abstract"].map(normalize)).str.strip()
 
 
 def _index_cached_works() -> dict[str, dict]:
@@ -338,9 +235,13 @@ def fetch_for_dois(dois: list[str]) -> dict[str, dict]:
     remaining = [d for d in uniq if d not in out]
 
     if remaining:
-        batches = _pack_batches(remaining)
-        print(
-            f"  {len(remaining)}/{len(uniq)} DOIs uncached, {len(batches)} batches, {MAX_WORKERS} workers"
+        batches = pack_batches(remaining)
+        log.info(
+            "  %d/%d DOIs uncached, %d batches, %d workers",
+            len(remaining),
+            len(uniq),
+            len(batches),
+            MAX_WORKERS,
         )
         t0 = time.monotonic()
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
@@ -349,9 +250,9 @@ def fetch_for_dois(dois: list[str]) -> dict[str, dict]:
                     parsed = parse_work(work)
                     if parsed["doi"]:
                         out[parsed["doi"]] = parsed
-        print(f"  fetched remainder in {time.monotonic() - t0:.1f}s")
+        log.info("  fetched remainder in %.1fs", time.monotonic() - t0)
 
-    print(f"  matched {len(out)}/{len(uniq)} DOIs")
+    log.info("  matched %d/%d DOIs", len(out), len(uniq))
     return out
 
 
@@ -362,7 +263,7 @@ def enrich_venue(venue_key: str) -> None:
         raise SystemExit(f"Not found: {src}. Run `make venue VENUE={venue_key}` first.")
 
     df = pd.read_parquet(src)
-    print(f"[{venue_key}] Loaded {len(df)} rows from {src}")
+    log.info("[%s] Loaded %d rows from %s", venue_key, len(df), src)
 
     enriched = fetch_for_dois(df["doi"].dropna().tolist())
     empty = _empty_enrichment()
@@ -375,9 +276,10 @@ def enrich_venue(venue_key: str) -> None:
 
     n_doi_less = int((out["doi"].isna() & out["abstract"].isna()).sum())
     if n_doi_less:
-        print(
-            f"[{venue_key}] {n_doi_less} DOI-less rows without abstract "
-            f"(run --title-pass to attempt recovery)"
+        log.info(
+            "[%s] %d DOI-less rows without abstract (run --title-pass to attempt recovery)",
+            venue_key,
+            n_doi_less,
         )
 
     overrides_path = Path("data/manual") / f"{venue_key}_overrides.csv"
@@ -393,13 +295,21 @@ def enrich_venue(venue_key: str) -> None:
                     applied += 1
             if applied:
                 _recompute_text_fields(out)
-                print(f"[{venue_key}] Applied {applied} manual override(s) from {overrides_path}")
+                log.info(
+                    "[%s] Applied %d manual override(s) from %s",
+                    venue_key,
+                    applied,
+                    overrides_path,
+                )
 
     dest = INTERIM_DIR / f"{venue_key}_enriched.parquet"
     out.to_parquet(dest, index=False)
-    print(
-        f"[{venue_key}] Wrote {dest} ({len(out)} rows, "
-        f"abstract coverage {100 * out['has_abstract'].mean():.1f}%)"
+    log.info(
+        "[%s] Wrote %s (%d rows, abstract coverage %.1f%%)",
+        venue_key,
+        dest,
+        len(out),
+        100 * out["has_abstract"].mean(),
     )
 
 
@@ -414,16 +324,16 @@ def enrich_venue_titles(venue_key: str) -> None:
         raise SystemExit(f"Not found: {src}. Run the DOI pass first.")
 
     out = pd.read_parquet(src)
-    print(f"[{venue_key}] Loaded {len(out)} rows from {src}")
+    log.info("[%s] Loaded %d rows from %s", venue_key, len(out), src)
 
     doi_less = out["doi"].isna() & out["abstract"].isna()
     n_doi_less = int(doi_less.sum())
 
     if not n_doi_less:
-        print(f"[{venue_key}] No DOI-less rows without abstract — nothing to do.")
+        log.info("[%s] No DOI-less rows without abstract — nothing to do.", venue_key)
         return
 
-    print(f"[{venue_key}] {n_doi_less} DOI-less rows without abstract — OpenAlex title pass")
+    log.info("[%s] %d DOI-less rows without abstract — OpenAlex title pass", venue_key, n_doi_less)
     fallback_rows = [
         (idx, out.at[idx, "title"], int(out.at[idx, "year"])) for idx in out.index[doi_less]
     ]
@@ -433,11 +343,14 @@ def enrich_venue_titles(venue_key: str) -> None:
     _recompute_text_fields(out)
 
     out.to_parquet(src, index=False)
-    print(
-        f"[{venue_key}] Recovered {len(recovered)}/{n_doi_less} abstracts via title search "
-        f"({100 * len(recovered) / n_doi_less:.1f}%)"
+    log.info(
+        "[%s] Recovered %d/%d abstracts via title search (%.1f%%)",
+        venue_key,
+        len(recovered),
+        n_doi_less,
+        100 * len(recovered) / n_doi_less,
     )
-    print(f"[{venue_key}] Abstract coverage now {100 * out['has_abstract'].mean():.1f}%")
+    log.info("[%s] Abstract coverage now %.1f%%", venue_key, 100 * out["has_abstract"].mean())
 
 
 def _all_venue_keys() -> list[str]:
@@ -447,6 +360,8 @@ def _all_venue_keys() -> list[str]:
 
 if __name__ == "__main__":
     import sys
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     args = sys.argv[1:]
     title_pass = "--title-pass" in args

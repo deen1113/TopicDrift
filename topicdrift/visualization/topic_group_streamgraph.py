@@ -12,6 +12,7 @@ Writes: outputs/figures/topic_group_streamgraph_{scope}.html
 from __future__ import annotations
 
 import json
+import logging
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -26,6 +27,8 @@ from topicdrift.visualization._common import (
     load_scopes,
     scope_filter,
 )
+
+log = logging.getLogger(__name__)
 
 NAME = "topic_group_streamgraph"
 DEFAULT_COLOR = "#94a3b8"
@@ -211,9 +214,12 @@ def write_scope(scope: str, pt_scope: pd.DataFrame, id_to_label, group_color, gr
     ).replace("__COLORS__", json.dumps(group_color, ensure_ascii=False))
     dest = FIGURES_DIR / f"{NAME}_{scope}.html"
     fig.write_html(str(dest), include_plotlyjs="cdn", post_script=post)
-    print(
-        f"  wrote {dest.name} ({len(data['groups'])} themes, "
-        f"{len(pt_scope):,} papers, {len(data['buckets'])} buckets)"
+    log.info(
+        "  wrote %s (%d themes, %d papers, %d buckets)",
+        dest.name,
+        len(data["groups"]),
+        len(pt_scope),
+        len(data["buckets"]),
     )
 
 
@@ -234,4 +240,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

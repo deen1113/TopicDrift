@@ -11,11 +11,16 @@ pulled from CDN) — the interactive artifact is the whole point, so we don't
 flatten these to static PDFs.
 """
 
-import re
+import logging
 from pathlib import Path
 
 import pandas as pd
 import yaml
+
+from topicdrift.constants import OUTLIER_TOPIC_ID
+from topicdrift.utils.text import clean_author  # noqa: F401 — re-exported for callers
+
+log = logging.getLogger(__name__)
 
 # Anchor to the repo root (this file lives at src/visualization/_common.py) so
 # the figures can be generated from any working directory.
@@ -75,15 +80,6 @@ def short_label(top_words, n: int = 3) -> str:
     return " · ".join(w for w in words[:n] if w)
 
 
-def clean_author(name) -> str:
-    """Drop DBLP disambiguation suffixes, e.g. 'Michael Hicks 0001' -> 'Michael Hicks'.
-
-    Author-level figures (the bridge network, the migration Sankey) collapse the
-    numbered DBLP homonym keys so the same person is one node, not several.
-    """
-    return re.sub(r"\s+\d{3,}$", "", str(name)).strip()
-
-
 def load_topics() -> pd.DataFrame:
     """Topic summaries: topic_id, size, label, top_words (top_words is a list)."""
     return pd.read_parquet(PROCESSED_DIR / "icse_topics.parquet")
@@ -100,7 +96,7 @@ def topic_labels() -> dict[int, str]:
     return {
         int(r["topic_id"]): short_label(r["top_words"])
         for _, r in topics.iterrows()
-        if int(r["topic_id"]) != -1
+        if int(r["topic_id"]) != OUTLIER_TOPIC_ID
     }
 
 
@@ -126,4 +122,4 @@ def save(fig, name: str) -> None:
     """Write the interactive HTML for a figure (plotly.js via CDN)."""
     dest = FIGURES_DIR / f"{name}.html"
     fig.write_html(str(dest), include_plotlyjs="cdn")
-    print(f"  wrote {dest}")
+    log.info("  wrote %s", dest)

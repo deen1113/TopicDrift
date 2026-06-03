@@ -18,6 +18,7 @@ the same column set it expects:
   dblp_key, title, year, doi, authors, ee, url, venue, has_doi
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -30,6 +31,8 @@ from topicdrift.ingest._filters import (
     flag_missing,
 )
 
+log = logging.getLogger(__name__)
+
 INTERIM_DIR = Path("data/interim")
 DUMP_PATH = INTERIM_DIR / "dblp_conf.parquet"
 
@@ -41,9 +44,9 @@ def slice_venue(
     filters, return the per-venue silver DataFrame."""
     slug = f"conf/{venue_key}"
     df = dump[dump["conf"] == slug].copy()
-    print(f"[{venue_key}] {len(df)} rows in dump for {slug}")
+    log.info("[%s] %d rows in dump for %s", venue_key, len(df), slug)
     if df.empty:
-        print(f"  WARNING: no rows for {slug}. Check the DBLP slug spelling.")
+        log.warning("  WARNING: no rows for %s. Check the DBLP slug spelling.", slug)
         return df
 
     if not include_companion:
@@ -64,10 +67,11 @@ def build_venue(venue_key: str, include_companion: bool = False) -> None:
     df = slice_venue(venue_key, dump, include_companion=include_companion)
     out = INTERIM_DIR / f"{venue_key}_dblp.parquet"
     df.to_parquet(out, index=False)
-    print(f"[{venue_key}] wrote {out} ({len(df)} rows)\n")
+    log.info("[%s] wrote %s (%d rows)", venue_key, out, len(df))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = sys.argv[1:]
     include_companion = "--include-companion" in args
     venues = [a for a in args if not a.startswith("--")] or ["icse"]

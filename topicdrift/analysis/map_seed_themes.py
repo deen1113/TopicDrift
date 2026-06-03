@@ -18,6 +18,7 @@ them to take effect.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,8 @@ import pandas as pd
 import yaml
 
 from topicdrift.topic_model import TopicModel
+
+log = logging.getLogger(__name__)
 
 PROCESSED_DIR = Path("data/processed")
 LOCKED_YAML = Path("config/topic_groups.conf.yaml")
@@ -230,14 +233,15 @@ def main() -> None:
     OUT_YAML.write_text(
         header + yaml.safe_dump({"groups": groups}, sort_keys=False, allow_unicode=True, width=100)
     )
-    print(f"  wrote {OUT_YAML} ({len(groups)} themes over {len(ordered_ids)} topics)")
+    log.info("  wrote %s (%d themes over %d topics)", OUT_YAML, len(groups), len(ordered_ids))
     if LOCKED_YAML.exists():
-        print(f"  (locked file {LOCKED_YAML} unchanged — diff to review)")
+        log.info("  (locked file %s unchanged — diff to review)", LOCKED_YAML)
     else:
-        print(f"  NOTE: {LOCKED_YAML} does not exist; copy the proposed file to lock it in")
+        log.info("  NOTE: %s does not exist; copy the proposed file to lock it in", LOCKED_YAML)
     for g in groups:
-        print(f"    {g['name']:<40} {len(g['topics'])} topics")
+        log.info("    %-40s %d topics", g["name"], len(g["topics"]))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()
