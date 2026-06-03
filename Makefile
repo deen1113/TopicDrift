@@ -80,11 +80,11 @@ apply:  ## Stamp groupings into conf_* tables + theme registry
 
 figures:  ## Render per-scope figures (one HTML each for icse / top10 / all)
 	$(PYTHON) -m topicdrift.visualization.topic_group_streamgraph
-	$(PYTHON) -m topicdrift.visualization.topic_scope_treemap
+	$(PYTHON) -m topicdrift.visualization.topic_treemap
 
 site: figures  ## figures + copy HTML into docs/visualizations/ for the static site
 	cp outputs/figures/topic_group_streamgraph_*.html docs/visualizations/
-	cp outputs/figures/topic_scope_treemap_*.html docs/visualizations/
+	cp outputs/figures/topic_treemap_*.html docs/visualizations/
 
 analysis: corpus topics groups apply site  ## End-to-end: corpus → topics → groups → apply → site
 
@@ -107,7 +107,7 @@ status:  ## Report which pipeline artifacts exist on disk
 	  if [ -f $$f ]; then echo "  ✓ $$f"; else echo "  ✗ $$f (missing)"; fi ; \
 	done
 	@printf "\n── Figures ──\n"
-	@ls -1 outputs/figures/topic_group_streamgraph_*.html outputs/figures/topic_scope_treemap_*.html 2>/dev/null | sed 's/^/  /' || echo "  (no figures)"
+	@ls -1 outputs/figures/topic_group_streamgraph_*.html outputs/figures/topic_treemap_*.html 2>/dev/null | sed 's/^/  /' || echo "  (no figures)"
 
 clean-data:  ## Wipe data/ and outputs/ — confirms first (loses cached API responses)
 	@printf "Wipe data/ and outputs/? This deletes cached DBLP+OpenAlex responses. [y/N] " ; \

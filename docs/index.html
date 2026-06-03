@@ -83,6 +83,11 @@
       background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
       border-radius: 999px; padding: 5px 16px; font-size: 0.88rem;
       color: #e2e8f0; white-space: nowrap;
+      text-decoration: none; transition: background .15s, border-color .15s;
+    }
+    a.team-strip-link, .team-strip a.name { cursor: pointer; }
+    .team-strip a.name:hover {
+      background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.35); color: #fff;
     }
 
     /* ── Tab bar ─────────────────────────────────────────────────── */
@@ -152,18 +157,18 @@
 
 <!-- ── Header ── -->
 <header>
-  <p class="eyebrow">CS4530 &nbsp;·&nbsp; Northeastern University</p>
+  <p class="eyebrow">CS6510 &nbsp;·&nbsp; Northeastern University</p>
   <h1>Topic<span>Drift</span></h1>
   <p class="subtitle">
     How research themes evolve across five decades of computer-science
     conferences — from ICSE alone to a corpus of 2,000+ venues.
   </p>
   <div class="team-strip">
-    <span class="name">Michael Maaseide</span>
-    <span class="name">Deen Khan</span>
-    <span class="name">Lucas Oberwager</span>
-    <span class="name">Reece DiGiacomo</span>
-    <span class="name">Brian Looney</span>
+    <a class="name" href="https://github.com/mmaaseide23" target="_blank" rel="noopener">Michael Maaseide</a>
+    <a class="name" href="https://github.com/deen1113" target="_blank" rel="noopener">Deen Khan</a>
+    <a class="name" href="https://github.com/oberwager" target="_blank" rel="noopener">Lucas Oberwager</a>
+    <a class="name" href="https://github.com/reecedigiacomo" target="_blank" rel="noopener">Reece DiGiacomo</a>
+    <a class="name" href="https://github.com/bloons1433" target="_blank" rel="noopener">Brian Looney</a>
   </div>
 </header>
 
@@ -202,10 +207,12 @@
       <article class="viz-card">
         <div class="viz-card-header">
           <h3>Corpus Composition</h3>
-          <p>Decade → theme → topic. Tile area is paper volume; colour is the
-             overarching theme. Click to zoom into any era or theme.</p>
+          <p>Decade → topic. Tile area is paper volume; colour is the topic's
+             identity. Toggle to recolour by citation impact, growth vs. the
+             previous decade, or newly-emerged topics — and click any tile for a
+             decade's era summary or a topic's full stats and papers.</p>
         </div>
-        <iframe src="visualizations/topic_scope_treemap_icse.html" height="820"
+        <iframe src="visualizations/topic_treemap_icse.html" height="1240"
                 title="ICSE composition treemap" loading="lazy"></iframe>
       </article>
       <article class="viz-card">
@@ -246,9 +253,12 @@
       <article class="viz-card">
         <div class="viz-card-header">
           <h3>Corpus Composition</h3>
-          <p>Decade → theme → topic across the ten flagship venues.</p>
+          <p>Decade → topic across the ten flagship venues. Tile area is paper
+             volume; colour is the topic's identity — toggle to recolour by growth
+             or newly-emerged topics. Click any tile for a decade's era summary or
+             a topic's papers.</p>
         </div>
-        <iframe src="visualizations/topic_scope_treemap_top10.html" height="820"
+        <iframe src="visualizations/topic_treemap_top10.html" height="1240"
                 title="Top-10 composition treemap" loading="lazy"></iframe>
       </article>
     </div>
@@ -278,9 +288,12 @@
       <article class="viz-card">
         <div class="viz-card-header">
           <h3>Corpus Composition</h3>
-          <p>Decade → theme → topic across every venue in the corpus.</p>
+          <p>Decade → topic across every venue in the corpus. Tile area is paper
+             volume; colour is the topic's identity — toggle to recolour by growth
+             or newly-emerged topics. Click any tile for a decade's era summary or
+             a topic's papers.</p>
         </div>
-        <iframe src="visualizations/topic_scope_treemap_all.html" height="820"
+        <iframe src="visualizations/topic_treemap_all.html" height="1240"
                 title="All-conferences composition treemap" loading="lazy"></iframe>
       </article>
     </div>
@@ -289,7 +302,7 @@
 </main>
 
 <footer>
-  TopicDrift &nbsp;·&nbsp; CS4530 &nbsp;·&nbsp; Northeastern University &nbsp;·&nbsp;
+  TopicDrift &nbsp;·&nbsp; CS6510 &nbsp;·&nbsp; Northeastern University &nbsp;·&nbsp;
   one global topic model · three venue scopes
 </footer>
 

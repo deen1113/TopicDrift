@@ -49,7 +49,7 @@ make site       # also copies the HTML into docs/visualizations/
 make analysis   # corpus → topics → groups → apply → site
 ```
 
-Per-scope outputs land at `outputs/figures/topic_group_streamgraph_{icse,top10,all}.html` and `topic_scope_treemap_{icse,top10,all}.html`.
+Per-scope outputs land at `outputs/figures/topic_group_streamgraph_{icse,top10,all}.html` and `topic_treemap_{icse,top10,all}.html`.
 
 ## Inspecting state
 

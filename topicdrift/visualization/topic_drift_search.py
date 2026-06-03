@@ -29,7 +29,13 @@ import json
 
 import plotly.graph_objects as go
 
-from _common import FIGURES_DIR, load_paper_topics, load_topics, load_tot, short_label
+from topicdrift.visualization._common import (
+    FIGURES_DIR,
+    load_paper_topics,
+    load_topics,
+    load_tot,
+    short_label,
+)
 
 NAME = "topic_drift_search"
 

@@ -16,7 +16,7 @@ import json
 import pandas as pd
 import plotly.graph_objects as go
 
-from _common import (
+from topicdrift.visualization._common import (
     BUCKET_YEARS,
     FIGURES_DIR,
     SCOPE_TITLES,
