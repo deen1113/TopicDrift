@@ -6,7 +6,14 @@ Multi-conference site pipeline, step 3/4:
 
 Each seed theme is anchored by its original ICSE sub-topics; every global topic
 is assigned to its nearest anchor (cosine on the topic centroid vs the embedded
-anchor text). Writes config/topic_groups.conf.yaml for apply_topic_groups.py.
+anchor text).
+
+Writes config/topic_groups.conf.proposed.yaml — a *proposed* mapping for human
+review. The locked file at config/topic_groups.conf.yaml is the source of truth
+consumed by apply_topic_groups.py and is intentionally NOT overwritten here, so
+LLM-label drift across re-fits doesn't churn the live grouping. Diff the
+proposed file against the locked one and copy changes in by hand when you want
+them to take effect.
 """
 
 from __future__ import annotations
@@ -20,7 +27,8 @@ import yaml
 from topicdrift.topic_model import TopicModel
 
 PROCESSED_DIR = Path("data/processed")
-OUT_YAML = Path("config/topic_groups.conf.yaml")
+LOCKED_YAML = Path("config/topic_groups.conf.yaml")
+OUT_YAML = Path("config/topic_groups.conf.proposed.yaml")
 
 # Original ICSE themes → (colour, anchor sub-topics). Anchors seed the meaning.
 SEEDS: dict[str, tuple[str, list[str]]] = {
@@ -189,15 +197,11 @@ def main() -> None:
     topics.to_parquet(PROCESSED_DIR / "conf_topics.parquet", index=False)
     centroids = np.load(PROCESSED_DIR / "conf_topic_centroids.npy")
     ordered_ids = sorted(topics["topic_id"].astype(int).tolist())
-    label_of = dict(
-        zip(topics["topic_id"].astype(int), topics["llm_label"].astype(str))
-    )
+    label_of = dict(zip(topics["topic_id"].astype(int), topics["llm_label"].astype(str)))
 
     embedder = TopicModel().embedder()
     anchor_text = [f"{name}. " + ", ".join(words) for name, (_, words) in SEEDS.items()]
-    anchors = np.asarray(
-        embedder.encode(anchor_text, normalize_embeddings=True), dtype=np.float32
-    )
+    anchors = np.asarray(embedder.encode(anchor_text, normalize_embeddings=True), dtype=np.float32)
     theme_names = list(SEEDS)
 
     sims = centroids @ anchors.T  # (n_topics, 10)
@@ -214,23 +218,23 @@ def main() -> None:
         mem = sorted(members[name], key=lambda x: -x[1])
         if not mem:
             continue
-        groups.append(
-            {"name": name, "color": SEEDS[name][0], "topics": [m[0] for m in mem]}
-        )
+        groups.append({"name": name, "color": SEEDS[name][0], "topics": [m[0] for m in mem]})
     groups.sort(key=lambda g: sum(size.get(t, 0) for t in g["topics"]), reverse=True)
 
     header = (
-        "# config/topic_groups.conf.yaml — global topics fitted into the\n"
-        "# original 10 ICSE themes (map_seed_themes.py, nearest-anchor).\n"
-        "# Editable: move labels between themes, then run apply_topic_groups.py.\n\n"
+        f"# {OUT_YAML.name} — PROPOSED mapping from a fresh topic fit.\n"
+        f"# Source of truth is {LOCKED_YAML.name} (locked, hand-edited).\n"
+        "# Review this file, then copy desired changes into the locked one.\n"
+        "# Diff:  diff -u config/topic_groups.conf.yaml config/topic_groups.conf.proposed.yaml\n\n"
     )
     OUT_YAML.write_text(
-        header
-        + yaml.safe_dump(
-            {"groups": groups}, sort_keys=False, allow_unicode=True, width=100
-        )
+        header + yaml.safe_dump({"groups": groups}, sort_keys=False, allow_unicode=True, width=100)
     )
     print(f"  wrote {OUT_YAML} ({len(groups)} themes over {len(ordered_ids)} topics)")
+    if LOCKED_YAML.exists():
+        print(f"  (locked file {LOCKED_YAML} unchanged — diff to review)")
+    else:
+        print(f"  NOTE: {LOCKED_YAML} does not exist; copy the proposed file to lock it in")
     for g in groups:
         print(f"    {g['name']:<40} {len(g['topics'])} topics")
 

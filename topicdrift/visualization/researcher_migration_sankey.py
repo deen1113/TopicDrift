@@ -115,9 +115,7 @@ def build():
                 flows[b][(dominant[b], dominant[b + BUCKET])] += 1
 
     buckets = sorted(b for b in pt["bucket"].unique())
-    flows = {
-        b: {k: v for k, v in c.items() if v >= MIN_AUTHORS} for b, c in flows.items()
-    }
+    flows = {b: {k: v for k, v in c.items() if v >= MIN_AUTHORS} for b, c in flows.items()}
     flows = {b: c for b, c in flows.items() if c}
     return flows, buckets, top_ids, labels
 
@@ -168,11 +166,7 @@ def plot(flows, buckets, top_ids, labels):
                     xs=xs,
                     ys=ys,
                     width=1.5 + 7 * np.sqrt(n / max_flow),
-                    color=(
-                        "rgba(170,176,186,0.32)"
-                        if same
-                        else _hex_to_rgba(color_of[s], 0.62)
-                    ),
+                    color=("rgba(170,176,186,0.32)" if same else _hex_to_rgba(color_of[s], 0.62)),
                     text=(
                         f"<b>{n} researchers</b><br>{labels[s]} ({_win_label(b)})"
                         f"  &#8594;  {labels[t]} ({_win_label(b + BUCKET)})"
@@ -293,9 +287,7 @@ def plot(flows, buckets, top_ids, labels):
     # fraction clamp(focus - i, 0, 1) with its tip parked at screen 0 (centre). The
     # finale eases the scale down and the focus to the timeline centre to fit the
     # whole thing. Only trace data changes, so the motion is perfectly steady.
-    by_ti = {
-        ti: [i for i, r in enumerate(ribbons) if r["ti"] == ti] for ti in range(last)
-    }
+    by_ti = {ti: [i for i, r in enumerate(ribbons) if r["ti"] == ti] for ti in range(last)}
 
     def xticks(focus, scale):
         return dict(tickvals=list((win_world_x - focus) * scale), ticktext=win_text)
@@ -326,9 +318,7 @@ def plot(flows, buckets, top_ids, labels):
             vis = [ti for ti in range(last) if ti <= f + HALF and ti + 1 >= f - HALF]
             idx = [i for ti in vis for i in by_ti[ti]]
             data = [
-                ribbon_scatter(
-                    ribbons[i], min(max(f - ribbons[i]["ti"], 0.0), 1.0), f, 1.0
-                )
+                ribbon_scatter(ribbons[i], min(max(f - ribbons[i]["ti"], 0.0), 1.0), f, 1.0)
                 for i in idx
             ]
         data.append(node_scatter(f, 1.0))

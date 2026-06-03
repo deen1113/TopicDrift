@@ -63,8 +63,7 @@ MAX_REQUESTS_PER_SEC = 10
 MAX_WORKERS = 16
 CONCEPT_MIN_SCORE = 0.3
 SELECT_FIELDS = (
-    "id,doi,display_name,publication_year,abstract_inverted_index,"
-    "concepts,cited_by_count,type"
+    "id,doi,display_name,publication_year,abstract_inverted_index,concepts,cited_by_count,type"
 )
 
 LATEX = re.compile(r"\$[^$]*\$")
@@ -233,9 +232,7 @@ def parse_work(work: dict) -> dict:
     }
 
 
-def _fetch_title_one(
-    idx: int, title: str, year: int
-) -> tuple[int, dict | None, str | None]:
+def _fetch_title_one(idx: int, title: str, year: int) -> tuple[int, dict | None, str | None]:
     """OpenAlex title.search for one row. Prefers a strict normalized-title + year
     match; falls back to a loose match (logged for audit). Returns the match kind."""
     cache = _title_cache_path(title, year)
@@ -245,9 +242,7 @@ def _fetch_title_one(
         data = {"results": []}
         for attempt in range(4):
             _rate_limiter.acquire()
-            r = _session().get(
-                OPENALEX_URL, params=_oa_title_params(title, year), timeout=30
-            )
+            r = _session().get(OPENALEX_URL, params=_oa_title_params(title, year), timeout=30)
             if r.status_code == 429:
                 time.sleep(3 * 2**attempt)
                 continue
@@ -284,9 +279,7 @@ def fetch_by_titles(rows: list[tuple[int, str, int]]) -> dict[int, dict]:
     out: dict[int, dict] = {}
     strict_n = loose_n = 0
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futs = [
-            pool.submit(_fetch_title_one, idx, title, year) for idx, title, year in rows
-        ]
+        futs = [pool.submit(_fetch_title_one, idx, title, year) for idx, title, year in rows]
         for fut in as_completed(futs):
             idx, parsed, kind = fut.result()
             if parsed:
@@ -316,9 +309,7 @@ def _apply_enrichment(out: pd.DataFrame, idx: int, data: dict) -> None:
 
 def _recompute_text_fields(out: pd.DataFrame) -> None:
     out["has_abstract"] = out["abstract"].fillna("").str.len() > 0
-    out["text"] = (
-        out["title"].map(normalize) + " " + out["abstract"].map(normalize)
-    ).str.strip()
+    out["text"] = (out["title"].map(normalize) + " " + out["abstract"].map(normalize)).str.strip()
 
 
 def _index_cached_works() -> dict[str, dict]:
@@ -402,9 +393,7 @@ def enrich_venue(venue_key: str) -> None:
                     applied += 1
             if applied:
                 _recompute_text_fields(out)
-                print(
-                    f"[{venue_key}] Applied {applied} manual override(s) from {overrides_path}"
-                )
+                print(f"[{venue_key}] Applied {applied} manual override(s) from {overrides_path}")
 
     dest = INTERIM_DIR / f"{venue_key}_enriched.parquet"
     out.to_parquet(dest, index=False)
@@ -434,12 +423,9 @@ def enrich_venue_titles(venue_key: str) -> None:
         print(f"[{venue_key}] No DOI-less rows without abstract — nothing to do.")
         return
 
-    print(
-        f"[{venue_key}] {n_doi_less} DOI-less rows without abstract — OpenAlex title pass"
-    )
+    print(f"[{venue_key}] {n_doi_less} DOI-less rows without abstract — OpenAlex title pass")
     fallback_rows = [
-        (idx, out.at[idx, "title"], int(out.at[idx, "year"]))
-        for idx in out.index[doi_less]
+        (idx, out.at[idx, "title"], int(out.at[idx, "year"])) for idx in out.index[doi_less]
     ]
     recovered = fetch_by_titles(fallback_rows)
     for idx, data in recovered.items():
@@ -451,16 +437,12 @@ def enrich_venue_titles(venue_key: str) -> None:
         f"[{venue_key}] Recovered {len(recovered)}/{n_doi_less} abstracts via title search "
         f"({100 * len(recovered) / n_doi_less:.1f}%)"
     )
-    print(
-        f"[{venue_key}] Abstract coverage now {100 * out['has_abstract'].mean():.1f}%"
-    )
+    print(f"[{venue_key}] Abstract coverage now {100 * out['has_abstract'].mean():.1f}%")
 
 
 def _all_venue_keys() -> list[str]:
     """Return all venue keys with a *_dblp.parquet file in INTERIM_DIR."""
-    return sorted(
-        p.stem.removesuffix("_dblp") for p in INTERIM_DIR.glob("*_dblp.parquet")
-    )
+    return sorted(p.stem.removesuffix("_dblp") for p in INTERIM_DIR.glob("*_dblp.parquet"))
 
 
 if __name__ == "__main__":
@@ -473,8 +455,7 @@ if __name__ == "__main__":
     if not venues:
         if title_pass:
             venues = sorted(
-                p.stem.removesuffix("_enriched")
-                for p in INTERIM_DIR.glob("*_enriched.parquet")
+                p.stem.removesuffix("_enriched") for p in INTERIM_DIR.glob("*_enriched.parquet")
             )
         else:
             venues = _all_venue_keys()

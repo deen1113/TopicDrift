@@ -30,7 +30,10 @@ Slice the DBLP dump down to one (or more) venues, enrich with OpenAlex, write a 
 make venue                                # default: VENUE=icse
 make venue VENUE="icse ase issta msr"     # any space-separated DBLP keys
 make venue-deep VENUE=icse                # adds slow title-pass + ACM DL scrape
+make venue INCLUDE_COMPANION=1            # keep companion volumes + workshops
 ```
+
+A venue-agnostic main-track filter runs by default: it infers each venue's canonical acronym from the DBLP `booktitle` distribution, then keeps rows whose booktitle starts with that acronym (including split volumes like `ICSE (2)` and co-located research tracks like `ICSE-SEIP`, `ICSE (NIER)`). Companion volumes, workshop summaries, and `*@ICSE`-style satellites are dropped. The same rule works for renamed venues — e.g. `conf/kbse` correctly resolves to `ASE` and keeps both eras.
 
 Outputs: `outputs/tables/<venue>_papers_preview.csv` per venue, plus silver-layer parquet at `data/interim/<venue>_enriched.parquet`.
 

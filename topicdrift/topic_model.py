@@ -209,13 +209,11 @@ class TopicModel:
         raw_topics, _ = self.model.fit_transform(docs, embeddings=embeddings)
         n_out_raw = sum(1 for t in raw_topics if t == -1)
         print(
-            f"  pre-reduce outliers: {n_out_raw}/{len(raw_topics)} ({100*n_out_raw/len(raw_topics):.1f}%)"
+            f"  pre-reduce outliers: {n_out_raw}/{len(raw_topics)} ({100 * n_out_raw / len(raw_topics):.1f}%)"
         )
 
         if reduce_outliers and n_out_raw > 0:
-            new_topics = self.model.reduce_outliers(
-                docs, raw_topics, strategy="c-tf-idf"
-            )
+            new_topics = self.model.reduce_outliers(docs, raw_topics, strategy="c-tf-idf")
             self.model.update_topics(
                 docs,
                 topics=new_topics,
@@ -223,7 +221,7 @@ class TopicModel:
             )
             n_out_new = sum(1 for t in new_topics if t == -1)
             print(
-                f"  post-reduce outliers: {n_out_new}/{len(new_topics)} ({100*n_out_new/len(new_topics):.1f}%)"
+                f"  post-reduce outliers: {n_out_new}/{len(new_topics)} ({100 * n_out_new / len(new_topics):.1f}%)"
             )
             self.topics_ = list(new_topics)
         else:
@@ -298,8 +296,7 @@ class TopicModel:
         """Diversity score + per-pair Jaccard overlap table. Used by merge_duplicates."""
         df = topics[topics["topic_id"] != -1].copy()
         word_sets = {
-            int(r["topic_id"]): set(list(r["top_words"])[:top_n])
-            for _, r in df.iterrows()
+            int(r["topic_id"]): set(list(r["top_words"])[:top_n]) for _, r in df.iterrows()
         }
         all_words = [w for ws in word_sets.values() for w in ws]
         diversity = len(set(all_words)) / len(all_words) if all_words else 0.0
@@ -329,9 +326,7 @@ class TopicModel:
         return diversity, overlap_df
 
     @staticmethod
-    def find_duplicate_groups(
-        overlap_df: pd.DataFrame, threshold: float
-    ) -> list[list[int]]:
+    def find_duplicate_groups(overlap_df: pd.DataFrame, threshold: float) -> list[list[int]]:
         """Union-find groups of topics whose top-word Jaccard >= threshold."""
         high = overlap_df[overlap_df["jaccard"] >= threshold]
         if high.empty:
@@ -394,9 +389,7 @@ class TopicModel:
         )
         tok = gen.tokenizer
 
-        merged = paper_topics.merge(
-            silver[["dblp_key", "title"]], on="dblp_key", how="left"
-        )
+        merged = paper_topics.merge(silver[["dblp_key", "title"]], on="dblp_key", how="left")
         system = (
             "You name software-engineering research topics. Reply with ONLY a topic "
             "name of 2 or 3 plain words separated by single spaces. Use title case. "
@@ -412,10 +405,7 @@ class TopicModel:
             titles = merged[merged["topic_id"] == tid]["title"].dropna()
             sample = titles.sample(min(max_titles, len(titles)), random_state=42)
             title_block = "\n".join(f"- {s[:90]}" for s in sample.tolist())
-            user = (
-                f"Keywords: {words}\n\nExample paper titles:\n{title_block}\n\n"
-                "Topic name:"
-            )
+            user = f"Keywords: {words}\n\nExample paper titles:\n{title_block}\n\nTopic name:"
             prompt = tok.apply_chat_template(
                 [
                     {"role": "system", "content": system},

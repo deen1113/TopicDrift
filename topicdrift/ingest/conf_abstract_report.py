@@ -113,9 +113,7 @@ def _fetch_batch_slim(dois: list[str]) -> bool:
     for attempt in range(MAX_ATTEMPTS):
         _scan_limiter.acquire()
         try:
-            r = _session().get(
-                OPENALEX_URL, params=_params_slim(dois), timeout=(10, 60)
-            )
+            r = _session().get(OPENALEX_URL, params=_params_slim(dois), timeout=(10, 60))
         except requests.RequestException:
             time.sleep(min(60, 2**attempt))
             continue
@@ -148,9 +146,7 @@ def _run_round(pending: list[list[str]]) -> int:
             done += 1
             if done % 500 == 0:
                 rate = done / max(time.monotonic() - t0, 1e-6)
-                print(
-                    f"    {done:,}/{len(pending):,} ({rate:.1f}/s, {failed:,} failed)"
-                )
+                print(f"    {done:,}/{len(pending):,} ({rate:.1f}/s, {failed:,} failed)")
     return failed
 
 
@@ -178,9 +174,7 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
         summary = json.loads(SCAN_SUMMARY.read_text())
         if summary.get("n_total") == n_total and summary.get("n_dois") == len(uniq):
             out: dict[str, bool] = summary["scan"]
-            print(
-                f"  loaded summary cache ({len(out):,} DOIs matched); skipping batch reads"
-            )
+            print(f"  loaded summary cache ({len(out):,} DOIs matched); skipping batch reads")
             return out, n_total, n_total
 
     for rnd in range(1, MAX_ROUNDS + 1):
@@ -193,9 +187,7 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
             break
         if failed:
             wait = min(120, 30 * rnd)
-            print(
-                f"  round {rnd}: {failed:,} batches failed — pausing {wait}s before retry"
-            )
+            print(f"  round {rnd}: {failed:,} batches failed — pausing {wait}s before retry")
             time.sleep(wait)
 
     leftover = sum(1 for b in batches if not _scan_cache_path(b).exists())
@@ -207,15 +199,11 @@ def scan_dois(dois: list[str]) -> tuple[dict[str, bool], int, int]:
         if not cache.exists():
             continue
         for work in json.loads(cache.read_text()).get("results", []):
-            doi = (work.get("doi") or "").replace(
-                "https://doi.org/", ""
-            ).lower() or None
+            doi = (work.get("doi") or "").replace("https://doi.org/", "").lower() or None
             if doi:
                 out[doi] = bool(work.get("abstract_inverted_index"))
 
-    print(
-        f"  {n_cached:,}/{n_total:,} batches cached; matched {len(out):,}/{len(uniq):,} DOIs"
-    )
+    print(f"  {n_cached:,}/{n_total:,} batches cached; matched {len(out):,}/{len(uniq):,} DOIs")
 
     # Persist the merged result so future runs bypass the batch-file scan.
     if n_cached == n_total:
@@ -283,9 +271,7 @@ def _md_table(df: pd.DataFrame) -> str:
     return "\n".join([head, sep, *body])
 
 
-def _write_report(
-    df: pd.DataFrame, ranked: pd.DataFrame, scan: dict[str, bool]
-) -> None:
+def _write_report(df: pd.DataFrame, ranked: pd.DataFrame, scan: dict[str, bool]) -> None:
     n_papers = len(df)
     n_doi = int(df["doi"].notna().sum())
     n_abstract = int(df["doi"].isin({d for d, h in scan.items() if h}).sum())

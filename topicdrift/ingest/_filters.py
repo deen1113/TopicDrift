@@ -94,3 +94,65 @@ def flag_missing(df: pd.DataFrame) -> pd.DataFrame:
     if len(df):
         print(f"  papers missing DOI: {missing} ({100 * missing / len(df):.1f}%)")
     return df
+
+
+def is_main_track(booktitle: str | None, acronym: str) -> bool:
+    """Venue-agnostic main-track test against the DBLP <booktitle>.
+
+    Main-track booktitles start with the venue acronym and continue with
+    end-of-string, a space, a dash, or an opening paren (covers split
+    volumes like "ICSE (1)" and colocated research tracks like "ICSE (SEIP)",
+    "ICSE-NIER"). Companion volumes and workshop summaries are excluded by
+    the "companion" / "workshop" substring guard.
+
+    Standalone workshop booktitles (e.g. "CHASE", "SEAMS", "AST@ICSE") don't
+    start with the acronym and are dropped automatically.
+    """
+    if not isinstance(booktitle, str) or not booktitle.strip():
+        return False
+    bt = booktitle.strip()
+    a = acronym.upper()
+    btu = bt.upper()
+    if btu == a:
+        return True
+    if not (btu.startswith(f"{a} ") or btu.startswith(f"{a}-") or btu.startswith(f"{a}(")):
+        return False
+    blow = bt.lower()
+    return "companion" not in blow and "workshop" not in blow
+
+
+def infer_acronym(booktitles: pd.Series) -> str | None:
+    """Guess a venue's canonical acronym from its booktitle distribution.
+
+    Picks the most-common booktitle that doesn't look like a workshop/companion
+    entry, then keeps the head (everything before " (" or "-"). Handles venues
+    whose DBLP slug differs from the booktitle, e.g. conf/kbse → "ASE".
+    """
+    bt = booktitles.dropna().astype(str)
+    bt = bt[~bt.str.contains(r"@|companion|workshop", case=False, regex=True, na=False)]
+    if bt.empty:
+        return None
+    top = bt.value_counts().idxmax()
+    head = re.split(r"\s*\(", str(top), maxsplit=1)[0]
+    head = re.split(r"-", head, maxsplit=1)[0]
+    return head.strip().upper() or None
+
+
+def filter_main_track(df: pd.DataFrame, slug_acronym: str) -> pd.DataFrame:
+    """Keep only main-track + colocated-research-track rows (drop companion,
+    workshop summaries, and standalone satellite events filed under the same
+    DBLP slug). Requires a `booktitle` column from the DBLP dump.
+
+    Matches both the slug-derived acronym and the inferred-from-data acronym
+    (so renamed venues like KBSE → ASE keep both eras of papers).
+    """
+    if "booktitle" not in df.columns:
+        print("  WARNING: booktitle column missing — main-track filter skipped")
+        return df
+    inferred = infer_acronym(df["booktitle"])
+    acronyms = {slug_acronym.upper()} | ({inferred} if inferred else set())
+    note = f"acronyms={'/'.join(sorted(acronyms))}"
+    keep = df["booktitle"].map(lambda bt: any(is_main_track(bt, a) for a in acronyms))
+    n_drop = int((~keep).sum())
+    print(f"  dropped {n_drop} non-main-track rows ({note})")
+    return df[keep].reset_index(drop=True)

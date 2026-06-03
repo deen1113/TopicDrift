@@ -37,9 +37,7 @@ def load_scopes() -> dict:
     return yaml.safe_load((ROOT / "config/venues.yaml").read_text()).get("scopes", {})
 
 
-def scope_filter(
-    pt: pd.DataFrame, scope: str, scopes: dict | None = None
-) -> pd.DataFrame:
+def scope_filter(pt: pd.DataFrame, scope: str, scopes: dict | None = None) -> pd.DataFrame:
     """Rows of a conf_* table belonging to `scope` (no filter for 'all')."""
     venues = (scopes or load_scopes()).get(scope)
     if scope == "all" or not isinstance(venues, list):
@@ -60,9 +58,7 @@ def conf_topic_labels() -> dict[int, str]:
 
 def conf_group_registry() -> tuple[dict[str, str], list[str]]:
     """({group: colour}, [group order]) from conf_topic_groups.parquet."""
-    reg = pd.read_parquet(PROCESSED_DIR / "conf_topic_groups.parquet").sort_values(
-        "order"
-    )
+    reg = pd.read_parquet(PROCESSED_DIR / "conf_topic_groups.parquet").sort_values("order")
     colors = {str(r["group"]): str(r["color"]) for _, r in reg.iterrows()}
     return colors, reg["group"].astype(str).tolist()
 

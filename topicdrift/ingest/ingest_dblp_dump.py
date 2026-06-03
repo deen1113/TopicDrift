@@ -9,7 +9,10 @@ this fetches the complete dump so we can measure abstract availability across
 Reads:  https://dblp.org/xml/dblp.xml.gz  (+ dblp.dtd for entity resolution)
 Writes: data/interim/dblp_conf.parquet
 
-Columns: conf, dblp_key, title, year, doi, authors, ee, url
+Columns: conf, dblp_key, title, year, doi, authors, ee, url, booktitle
+
+`booktitle` distinguishes main-track from companion/workshop entries that share
+the same `conf` slug — the per-venue path uses it to drop companion rows.
 
 The per-venue path (topicdrift.ingest.venue) reads this same parquet and slices
 it by `conf`, so we capture everything that downstream needs from one parse.
@@ -61,9 +64,7 @@ def _download(url: str, dest: Path, max_attempts: int = 6) -> None:
         resume = tmp.stat().st_size if tmp.exists() else 0
         headers = {"Range": f"bytes={resume}-"} if resume else {}
         try:
-            with requests.get(
-                url, stream=True, timeout=(30, 120), headers=headers
-            ) as r:
+            with requests.get(url, stream=True, timeout=(30, 120), headers=headers) as r:
                 # 206 => server honored Range (append); else (re)start from scratch.
                 append = resume and r.status_code == 206
                 if not append:
@@ -76,9 +77,7 @@ def _download(url: str, dest: Path, max_attempts: int = 6) -> None:
                         f.write(chunk)
                         done += len(chunk)
                         if total:
-                            print(
-                                f"\r    {done / 1e9:.2f}/{total / 1e9:.2f} GB", end=""
-                            )
+                            print(f"\r    {done / 1e9:.2f}/{total / 1e9:.2f} GB", end="")
             print()
             tmp.rename(dest)
             return
@@ -125,9 +124,7 @@ def _parse_inproceedings() -> pd.DataFrame:
     """Stream every <inproceedings>, flattening into rows."""
     rows = []
     kept = skipped = 0
-    context = etree.iterparse(
-        str(XML_PATH), events=("end",), tag="inproceedings", load_dtd=True
-    )
+    context = etree.iterparse(str(XML_PATH), events=("end",), tag="inproceedings", load_dtd=True)
     for _, elem in context:
         publtype = elem.get("publtype")
         key = elem.get("key") or ""
@@ -138,33 +135,21 @@ def _parse_inproceedings() -> pd.DataFrame:
             title_el = elem.find("title")
             year_el = elem.find("year")
             url_el = elem.find("url")
+            bt_el = elem.find("booktitle")
             doi, ee = _doi_and_ee(elem)
             rows.append(
                 {
                     "conf": "/".join(parts[:2]),  # conf/<slug>
                     "dblp_key": key,
-                    "title": (
-                        "".join(title_el.itertext()).strip()
-                        if title_el is not None
-                        else ""
-                    ),
-                    "year": (
-                        int(year_el.text)
-                        if year_el is not None and year_el.text
-                        else None
-                    ),
+                    "title": ("".join(title_el.itertext()).strip() if title_el is not None else ""),
+                    "year": (int(year_el.text) if year_el is not None and year_el.text else None),
                     "doi": doi,
-                    "authors": [
-                        (a.text or "").strip()
-                        for a in elem.iterfind("author")
-                        if a.text
-                    ],
+                    "authors": [(a.text or "").strip() for a in elem.iterfind("author") if a.text],
                     "ee": ee,
                     "url": (
-                        (url_el.text or "").strip()
-                        if url_el is not None and url_el.text
-                        else None
+                        (url_el.text or "").strip() if url_el is not None and url_el.text else None
                     ),
+                    "booktitle": (bt_el.text or "").strip() if bt_el is not None and bt_el.text else None,
                 }
             )
             kept += 1
@@ -195,9 +180,7 @@ def build_dump() -> None:
     df.to_parquet(OUT_PATH, index=False)
     n_conf = df["conf"].nunique()
     doi_cov = 100 * df["doi"].notna().mean()
-    print(
-        f"Wrote {OUT_PATH} ({len(df):,} papers, {n_conf:,} venues, {doi_cov:.1f}% with DOI)"
-    )
+    print(f"Wrote {OUT_PATH} ({len(df):,} papers, {n_conf:,} venues, {doi_cov:.1f}% with DOI)")
 
     # Reclaim ~4.5 GB; keep the .gz so re-runs skip the download.
     XML_PATH.unlink(missing_ok=True)

@@ -21,11 +21,15 @@ import pandas as pd
 import pyarrow.parquet as pq
 import yaml
 
+INTERIM_DIR = Path("data/interim")
 PROCESSED_DIR = Path("data/processed")
 OUTPUTS_TABLES = Path("outputs/tables")
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_TABLES.mkdir(parents=True, exist_ok=True)
 
-CONF_ENRICHED = PROCESSED_DIR / "conf_enriched.parquet"
+# Silver layer (per-paper rows): build_conf_corpus writes here.
+CONF_ENRICHED = INTERIM_DIR / "conf_enriched.parquet"
+# Gold layer (fit-sample selection):
 UNIVERSE_OUT = PROCESSED_DIR / "conf_universe.parquet"
 VENUES_CFG = Path("config/venues.yaml")
 
@@ -80,8 +84,7 @@ def select() -> None:
         ["dblp_key", "conf", "year"]
     ].reset_index(drop=True)
     print(
-        f"  universe: {len(uni):,} abstract-bearing papers across "
-        f"{uni['conf'].nunique():,} venues"
+        f"  universe: {len(uni):,} abstract-bearing papers across {uni['conf'].nunique():,} venues"
     )
 
     # ── Stratified fit sample ────────────────────────────────────────────────
@@ -124,11 +127,7 @@ def select() -> None:
     report = (
         stats.assign(
             kept=stats.index.isin(keep_venues),
-            n_universe=uni.groupby("conf")
-            .size()
-            .reindex(stats.index)
-            .fillna(0)
-            .astype(int),
+            n_universe=uni.groupby("conf").size().reindex(stats.index).fillna(0).astype(int),
             n_fit=fit_per_venue.reindex(stats.index).fillna(0).astype(int),
         )
         .sort_values("n_universe", ascending=False)

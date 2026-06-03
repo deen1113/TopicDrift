@@ -26,8 +26,11 @@ import yaml
 
 from topicdrift.topic_model import TopicModel, load_stopwords
 
+INTERIM_DIR = Path("data/interim")
 PROCESSED_DIR = Path("data/processed")
-CONF_ENRICHED = PROCESSED_DIR / "conf_enriched.parquet"
+# Silver layer (per-paper rows): build_conf_corpus writes here.
+CONF_ENRICHED = INTERIM_DIR / "conf_enriched.parquet"
+# Gold layer (analysis outputs):
 UNIVERSE = PROCESSED_DIR / "conf_universe.parquet"
 
 TOPICS_OUT = PROCESSED_DIR / "conf_topics.parquet"
@@ -59,9 +62,7 @@ def load_text(dblp_keys: list[str], cols=("dblp_key", "text", "title")) -> pd.Da
             parts.append(hit)
     df = pd.concat(parts, ignore_index=True).drop_duplicates("dblp_key")
     order = pd.Categorical(df["dblp_key"], categories=dblp_keys, ordered=True)
-    return (
-        df.assign(_o=order).sort_values("_o").drop(columns="_o").reset_index(drop=True)
-    )
+    return df.assign(_o=order).sort_values("_o").drop(columns="_o").reset_index(drop=True)
 
 
 # ── embedding ───────────────────────────────────────────────────────────────--
@@ -102,9 +103,7 @@ def fit_topics(
         np.save(FIT_EMB, embeddings)
 
     print(f"\n=== Global fit (seed={seed}, min_topic_size={min_topic_size}) ===")
-    topics = tm.fit(
-        fit_df["text"].tolist(), embeddings=embeddings, reduce_outliers=False
-    )
+    topics = tm.fit(fit_df["text"].tolist(), embeddings=embeddings, reduce_outliers=False)
     n = len(set(topics)) - (1 if -1 in topics else 0)
     print(f"  → {n} topics")
     groups = tm.merge_duplicates(fit_df["text"].tolist())
@@ -115,9 +114,7 @@ def fit_topics(
     return tm, list(topics), embeddings
 
 
-def topic_centroids(
-    embeddings: np.ndarray, topics: list[int]
-) -> tuple[np.ndarray, list[int]]:
+def topic_centroids(embeddings: np.ndarray, topics: list[int]) -> tuple[np.ndarray, list[int]]:
     """Mean (renormalised) embedding per non-outlier topic, ordered by topic_id."""
     topics_arr = np.asarray(topics)
     ids = sorted(t for t in set(topics) if t != -1)
@@ -129,9 +126,7 @@ def topic_centroids(
     return np.vstack(rows).astype(np.float32), ids
 
 
-def assign_nearest(
-    emb: np.ndarray, centroids: np.ndarray, ids: np.ndarray
-) -> np.ndarray:
+def assign_nearest(emb: np.ndarray, centroids: np.ndarray, ids: np.ndarray) -> np.ndarray:
     """Argmax cosine (emb and centroids are unit-norm) → topic_id per row."""
     out = np.empty(len(emb), dtype=np.int32)
     for s in range(0, len(emb), ASSIGN_BATCH):
@@ -229,9 +224,7 @@ def run_fit(args) -> None:
     else:
         paper_topics = assign_sample(fit_df, embeddings, centroids, ids)
     paper_topics.to_parquet(PAPER_TOPICS_OUT, index=False)
-    print(
-        f"  wrote {PAPER_TOPICS_OUT.name} ({len(paper_topics):,} rows, mode={args.assign})"
-    )
+    print(f"  wrote {PAPER_TOPICS_OUT.name} ({len(paper_topics):,} rows, mode={args.assign})")
     df = _write_topic_table(info, paper_topics.groupby("topic_id").size())
     print(f"  wrote {TOPICS_OUT.name} ({len(df)} topics)")
 
@@ -279,10 +272,7 @@ def main() -> None:
     args = ap.parse_args()
 
     reuse = (
-        args.assign == "all"
-        and not args.refit
-        and CENTROIDS_OUT.exists()
-        and TOPICS_OUT.exists()
+        args.assign == "all" and not args.refit and CENTROIDS_OUT.exists() and TOPICS_OUT.exists()
     )
     if reuse:
         run_assign_all()

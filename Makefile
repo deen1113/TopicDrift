@@ -5,7 +5,7 @@ VENUE  ?= icse
 
 .PHONY: help install \
         dump scan \
-        venue venue-deep \
+        venue titles acm venue-deep \
         corpus topics topics-all groups apply figures site analysis \
         status clean-data
 
@@ -17,7 +17,8 @@ help:  ## Show this help
 	@awk 'BEGIN{FS=":.*?## "} /^(dump|scan):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\nWorkflow A — one or more venues (preview CSV).  Requires: make dump\n"
 	@printf "  Override venues with VENUE=\"icse ase issta\" (space-separated). Default: icse.\n"
-	@awk 'BEGIN{FS=":.*?## "} /^(venue|venue-deep):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "  Main-track filter is on by default; add INCLUDE_COMPANION=1 to keep companion/workshops too.\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(venue|titles|acm|venue-deep):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\nWorkflow B — multi-conference topic drift (icse / top10 / all).  Requires: make scan\n"
 	@printf "  Scopes live in config/venues.yaml. Each figure target writes one HTML per scope.\n"
 	@awk 'BEGIN{FS=":.*?## "} /^(corpus|topics|topics-all|groups|apply|figures|site|analysis):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
@@ -44,14 +45,18 @@ scan: dump  ## dump + OpenAlex abstract scan + pooled corpus (~days, resumable)
 # VENUE accepts one or more space-separated DBLP keys (e.g. icse, ase, issta).
 # Each step iterates over the list. Requires `make dump` to have run.
 
-venue:  ## Slice DBLP dump → OpenAlex enrich → preview CSV
-	$(PYTHON) -m topicdrift.ingest.venue $(VENUE)
+venue:  ## Slice DBLP dump → OpenAlex enrich → preview CSV (main-track only by default)
+	$(PYTHON) -m topicdrift.ingest.venue $(if $(INCLUDE_COMPANION),--include-companion) $(VENUE)
 	$(PYTHON) -m topicdrift.ingest.enrich_openalex $(VENUE)
 	$(PYTHON) -m topicdrift.ingest.report $(VENUE)
 
-venue-deep: venue  ## venue + slow title-pass + ACM DL scrape (ACM needs cookie auth)
+titles:  ## OpenAlex title-pass: recover abstracts for DOI-less rows (after `make venue`)
 	$(PYTHON) -m topicdrift.ingest.enrich_openalex --title-pass $(VENUE)
+
+acm:  ## ACM DL scrape: recover remaining abstracts (after `make venue`, needs cookie auth)
 	$(PYTHON) -m topicdrift.ingest.enrich_acm $(VENUE)
+
+venue-deep: venue titles acm  ## venue + title-pass + ACM scrape (full enrichment)
 
 # ───────── Workflow B — multi-conference topic drift ──────
 # Run order for a first-time setup (after `make scan`):
@@ -62,11 +67,19 @@ venue-deep: venue  ## venue + slow title-pass + ACM DL scrape (ACM needs cookie 
 #   make figures    # or `make site` to also copy HTML into docs/visualizations/
 # Or: `make analysis` runs every step end-to-end.
 
-corpus:  ## Stratified fit sample (data/processed/conf_universe.parquet)
-	$(PYTHON) -m topicdrift.analysis.select_corpus
+corpus:  ## Stratified fit sample (skips if data/processed/conf_universe.parquet exists)
+	@if [ -f data/processed/conf_universe.parquet ]; then \
+	  echo "  ✓ data/processed/conf_universe.parquet exists — skipping (delete to force re-run)"; \
+	else \
+	  $(PYTHON) -m topicdrift.analysis.select_corpus; \
+	fi
 
-topics:  ## Fit BERTopic on the sample + assign sample papers (fast)
-	$(PYTHON) -m topicdrift.analysis.topics_conf --assign sample
+topics:  ## Fit BERTopic on the sample (skips if data/processed/conf_topics.parquet exists)
+	@if [ -f data/processed/conf_topics.parquet ]; then \
+	  echo "  ✓ data/processed/conf_topics.parquet exists — skipping (delete to force re-fit)"; \
+	else \
+	  $(PYTHON) -m topicdrift.analysis.topics_conf --assign sample; \
+	fi
 
 topics-all:  ## Extend topic assignment to every paper (slow; resumable)
 	$(PYTHON) -m topicdrift.analysis.topics_conf --assign all
@@ -93,7 +106,7 @@ analysis: corpus topics groups apply site  ## End-to-end: corpus → topics → 
 status:  ## Report which pipeline artifacts exist on disk
 	@printf "── Shared data ──\n"
 	@for f in data/interim/dblp_conf.parquet \
-	          data/processed/conf_enriched.parquet ; do \
+	          data/interim/conf_enriched.parquet ; do \
 	  if [ -f $$f ]; then echo "  ✓ $$f"; else echo "  ✗ $$f (missing)"; fi ; \
 	done
 	@printf "\n── Workflow A (per-venue) ──\n"

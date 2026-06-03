@@ -31,9 +31,7 @@ NAME = "topic_group_streamgraph"
 DEFAULT_COLOR = "#94a3b8"
 
 
-def build_scope_data(
-    pt: pd.DataFrame, id_to_label: dict, group_order: list[str]
-) -> dict:
+def build_scope_data(pt: pd.DataFrame, id_to_label: dict, group_order: list[str]) -> dict:
     """Per-scope payload: group time series + sub-topic drilldown (share-of-group)."""
     df = pt.dropna(subset=["group"]).copy()
     df["bucket"] = (df["year"] // BUCKET_YEARS) * BUCKET_YEARS
@@ -54,9 +52,7 @@ def build_scope_data(
 
     # drilldown: sub-topic share OF ITS GROUP per bucket
     topics_detail: dict[str, dict[str, list[dict]]] = {}
-    tb = (
-        df.groupby(["group", "bucket", "llm_label"]).size().rename("freq").reset_index()
-    )
+    tb = df.groupby(["group", "bucket", "llm_label"]).size().rename("freq").reset_index()
     grp_bucket_total = gb.set_index(["group", "bucket"])["freq"].to_dict()
     for g in groups:
         topics_detail[g] = {}
@@ -206,9 +202,7 @@ styleBar();hint();
 """
 
 
-def write_scope(
-    scope: str, pt_scope: pd.DataFrame, id_to_label, group_color, group_order
-) -> None:
+def write_scope(scope: str, pt_scope: pd.DataFrame, id_to_label, group_color, group_order) -> None:
     data = build_scope_data(pt_scope, id_to_label, group_order)
     title = SCOPE_TITLES.get(scope, scope)
     fig = build_fig(data, group_color, title)

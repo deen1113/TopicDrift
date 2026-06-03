@@ -146,15 +146,11 @@ def _fetch_page(session: requests.Session, url: str) -> bytes | None:
             cache.write_bytes(r.content)
             return r.content
         elif r.status_code == 403:
-            print(
-                "  403 — session expired or not authenticated. Re-export cookies and retry."
-            )
+            print("  403 — session expired or not authenticated. Re-export cookies and retry.")
             sys.exit(1)
         elif r.status_code in BACKOFF_CODES:
             wait = 3 * 2**attempt
-            print(
-                f"    HTTP {r.status_code}, backing off {wait}s (attempt {attempt+1}/4)"
-            )
+            print(f"    HTTP {r.status_code}, backing off {wait}s (attempt {attempt + 1}/4)")
             time.sleep(wait)
         elif r.status_code == 404:
             _miss_path(url).write_text("")
@@ -264,13 +260,9 @@ def scrape_one(
         if _strict_title_match(dblp_title, year, work):
             pass
         elif _loose_title_match(dblp_title, year, work):
-            print(
-                f"  LOOSE MATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}"
-            )
+            print(f"  LOOSE MATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}")
         else:
-            print(
-                f"  TITLE MISMATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}"
-            )
+            print(f"  TITLE MISMATCH: acm[{year}] {dblp_title[:55]!r} <- {page_title[:55]!r}")
 
     abstract = _extract_abstract(content)
     if not abstract:
@@ -287,9 +279,7 @@ def enrich_acm(venue_key: str) -> None:
     df = pd.read_parquet(src)
     print(f"Loaded {len(df)} rows from {src}")
 
-    targets = df[
-        ~df["has_abstract"] & df["ee"].fillna("").str.contains(ACM_URL_PATTERN)
-    ]
+    targets = df[~df["has_abstract"] & df["ee"].fillna("").str.contains(ACM_URL_PATTERN)]
     print(
         f"ACM scrape targets: {len(targets)} rows "
         f"(years {int(targets['year'].min())}–{int(targets['year'].max())})"
@@ -319,10 +309,7 @@ def enrich_acm(venue_key: str) -> None:
     _recompute_text_fields(df)
     df.to_parquet(src, index=False)
     print(f"\nRecovered {recovered}/{len(targets)} abstracts")
-    print(
-        f"Wrote {src} ({len(df)} rows, "
-        f"abstract coverage {100 * df['has_abstract'].mean():.1f}%)"
-    )
+    print(f"Wrote {src} ({len(df)} rows, abstract coverage {100 * df['has_abstract'].mean():.1f}%)")
 
 
 if __name__ == "__main__":
