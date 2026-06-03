@@ -10,6 +10,7 @@ Each figure is written as a self-contained HTML in outputs/figures/ (plotly.js
 pulled from CDN) — the interactive artifact is the whole point, so we don't
 flatten these to static PDFs.
 """
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -71,6 +72,15 @@ def short_label(top_words, n: int = 3) -> str:
     else:
         words = [str(w).strip() for w in top_words]
     return " · ".join(w for w in words[:n] if w)
+
+
+def clean_author(name) -> str:
+    """Drop DBLP disambiguation suffixes, e.g. 'Michael Hicks 0001' -> 'Michael Hicks'.
+
+    Author-level figures (the bridge network, the migration Sankey) collapse the
+    numbered DBLP homonym keys so the same person is one node, not several.
+    """
+    return re.sub(r"\s+\d{3,}$", "", str(name)).strip()
 
 
 def load_topics() -> pd.DataFrame:
