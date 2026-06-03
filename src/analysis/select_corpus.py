@@ -1,6 +1,9 @@
 """
 select_corpus.py — Pick the global-fit corpus from conf_enriched.parquet.
 
+Multi-conference site pipeline, step 1/4:
+  select_corpus -> topics_conf -> map_seed_themes -> apply_topic_groups
+
 Writes conf_universe.parquet (dblp_key, conf, year, in_fit): every abstract-
 bearing paper in a qualifying venue (the assignment universe), with in_fit
 marking the stratified subset the clustering is fit on (scope venues in full,

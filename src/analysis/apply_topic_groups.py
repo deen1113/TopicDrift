@@ -1,6 +1,9 @@
 """
 apply_topic_groups.py — Stamp the overarching grouping into the data.
 
+Multi-conference site pipeline, step 4/4:
+  select_corpus -> topics_conf -> map_seed_themes -> apply_topic_groups
+
 Reads a grouping YAML (the source of truth) and, for the given file prefix:
   • adds a `group` column to {prefix}topics/paper_topics(/topics_over_time),
   • writes the group registry {prefix}topic_groups.parquet (+ .csv), and

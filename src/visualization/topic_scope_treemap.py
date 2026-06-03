@@ -4,8 +4,7 @@ topic_scope_treemap.py — Composition treemap per scope (decade → theme → t
 A light, citation-free treemap that works identically for every scope
 (ICSE / Top-10 / All), built straight from the global assignment table. Tile
 area = #papers; colour = overarching theme. It answers "what is each era made
-of, and how big is each theme/topic" — complementing the streamgraph's drift
-view. (The richer citation/impact treemap stays ICSE-only in topic_treemap.py.)
+of, and how big is each theme/topic" — complementing the streamgraph's drift view.
 
 Reads:
   data/processed/conf_paper_topics.parquet   dblp_key, conf, year, topic_id, group

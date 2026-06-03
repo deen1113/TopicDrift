@@ -1,6 +1,9 @@
 """
 map_seed_themes.py — Fit the global topics into the original 10 ICSE themes.
 
+Multi-conference site pipeline, step 3/4:
+  select_corpus -> topics_conf -> map_seed_themes -> apply_topic_groups
+
 Each seed theme is anchored by its original ICSE sub-topics; every global topic
 is assigned to its nearest anchor (cosine on the topic centroid vs the embedded
 anchor text). Writes config/topic_groups.conf.yaml for apply_topic_groups.py.

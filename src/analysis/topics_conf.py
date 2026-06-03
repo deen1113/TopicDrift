@@ -1,6 +1,9 @@
 """
 topics_conf.py — ONE global BERTopic fit shared by all website tabs.
 
+Multi-conference site pipeline, step 2/4:
+  select_corpus -> topics_conf -> map_seed_themes -> apply_topic_groups
+
 Fit clustering on the stratified sample (select_corpus.py: in_fit=True), take an
 L2-normalised embedding centroid per topic, label with the local LLM, then assign
 papers to their nearest centroid:
