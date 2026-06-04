@@ -78,3 +78,50 @@
   // Safety net once everything (including iframes) has fully loaded.
   window.addEventListener("load", syncFrames);
 })();
+
+/* Easter egg — five fast clicks on the TopicDrift brand reveals ian.png
+   full-screen. Click anywhere (or press Esc) to dismiss. */
+(function () {
+  var NEEDED = 5;      // clicks required
+  var WINDOW = 1500;   // …within this many ms
+  var clicks = [];
+  var overlay = null;
+
+  function close() {
+    if (overlay) { overlay.remove(); overlay = null; }
+    document.removeEventListener("keydown", onKey);
+  }
+
+  function onKey(e) { if (e.key === "Escape") close(); }
+
+  function reveal() {
+    if (overlay) return;
+    overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);" +
+      "display:flex;align-items:center;justify-content:center;cursor:pointer;";
+    var img = document.createElement("img");
+    img.src = "visualizations/ian.png";
+    img.alt = "ian";
+    img.style.cssText = "max-width:100vw;max-height:100vh;object-fit:contain;";
+    overlay.appendChild(img);
+    overlay.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var brand = document.querySelector(".brand");
+    if (!brand) return;
+    brand.addEventListener("click", function (e) {
+      var now = Date.now();
+      clicks.push(now);
+      clicks = clicks.filter(function (t) { return now - t < WINDOW; });
+      if (clicks.length >= NEEDED) {
+        e.preventDefault(); // suppress navigation on the rapid final click
+        clicks = [];
+        reveal();
+      }
+    });
+  });
+})();
