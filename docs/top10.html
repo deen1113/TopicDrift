@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Top 10 Venues · TopicDrift</title>
   <script>
-    if (localStorage.getItem("td-dark") === "1") document.documentElement.classList.add("dark");
+    (function(){var h=location.hash||"",d;if(h.indexOf("td=dark")>=0)d=true;else if(h.indexOf("td=light")>=0)d=false;else{try{d=localStorage.getItem("td-dark")==="1"}catch(e){d=false}}if(d)document.documentElement.classList.add("dark");})();
   </script>
   <link rel="stylesheet" href="styles.css" />
 </head>

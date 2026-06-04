@@ -7,7 +7,7 @@
   <meta name="description" content="TopicDrift traces how software-engineering research themes rise and fall across five decades — from ICSE to a corpus of 2,000+ conferences." />
   <script>
     // Apply dark mode before first paint to avoid a flash.
-    if (localStorage.getItem("td-dark") === "1") document.documentElement.classList.add("dark");
+    (function(){var h=location.hash||"",d;if(h.indexOf("td=dark")>=0)d=true;else if(h.indexOf("td=light")>=0)d=false;else{try{d=localStorage.getItem("td-dark")==="1"}catch(e){d=false}}if(d)document.documentElement.classList.add("dark");})();
   </script>
   <link rel="stylesheet" href="styles.css" />
 </head>
