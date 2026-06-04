@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Top 10 Venues · TopicDrift</title>
+  <script>
+    if (localStorage.getItem("td-dark") === "1") document.documentElement.classList.add("dark");
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">Topic<span>Drift</span></a>
+  <nav class="site-nav">
+    <a href="index.html">Overview</a>
+    <a href="icse.html">ICSE</a>
+    <a href="top10.html" aria-current="page">Top 10</a>
+    <a href="all.html">All Conferences</a>
+    <label class="dm-toggle">
+      <span>Dark</span>
+      <span class="dm-switch"><input type="checkbox" id="dm-toggle" /><span class="dm-slider"></span></span>
+    </label>
+  </nav>
+</header>
+
+<div class="page-head">
+  <div class="inner">
+    <p class="eyebrow">Scope · Curated set</p>
+    <h1>Ten flagship software-engineering &amp; PL venues</h1>
+    <p>
+      ICSE, ESEC/FSE, ASE, ISSTA, ICSME, MSR, RE, OOPSLA, PLDI and POPL — the field's
+      most selective conferences, sharing the same topic space as every other scope so
+      the themes are directly comparable.
+    </p>
+  </div>
+</div>
+
+<main>
+  <div class="viz-grid">
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Research Theme Drift</h3>
+        <p>Theme share across the ten venues over time. Click a band to see its
+           sub-topics and their share of that theme.</p>
+      </div>
+      <iframe src="visualizations/topic_group_streamgraph_top10.html" height="780"
+              title="Top-10 theme drift" loading="lazy"></iframe>
+    </article>
+
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Corpus Composition</h3>
+        <p>Decade → topic across the ten flagship venues. Tile area is paper volume;
+           colour is the topic's identity — toggle to recolour by growth or
+           newly-emerged topics. Click any tile for a decade's era summary or a
+           topic's papers.</p>
+      </div>
+      <iframe src="visualizations/topic_treemap_top10.html" height="1240"
+              title="Top-10 composition treemap" loading="lazy"></iframe>
+    </article>
+  </div>
+</main>
+
+<footer>
+  TopicDrift · CS6510 · Northeastern University · one global topic model · three venue scopes
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

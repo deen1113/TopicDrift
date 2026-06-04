@@ -3,165 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TopicDrift — Research Theme Evolution Across Conferences</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --navy:   #0f1e38;
-      --blue:   #2563eb;
-      --light:  #f8fafc;
-      --border: #e2e8f0;
-      --text:   #1e293b;
-      --muted:  #64748b;
-      --card:   #ffffff;
-      --radius: 10px;
-    }
-
-    /* Site-wide dark theme — override the palette and everything cascades. */
-    html.dark {
-      --navy:   #0a1424;
-      --blue:   #4a90d9;
-      --light:  #1e1e1e;
-      --border: #3a3a3a;
-      --text:   #e6e6e6;
-      --muted:  #9aa3ad;
-      --card:   #2a2a2a;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: var(--light);
-      color: var(--text);
-      line-height: 1.65;
-      transition: background .2s, color .2s;
-    }
-
-    /* Dark-mode toggle, pinned top-right. Self-contained pill (theme-coloured
-       background + border + shadow) so it stays legible over any background it
-       scrolls past — navy header or white body. */
-    .dm-toggle {
-      position: fixed; top: 14px; right: 16px; z-index: 1000;
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px; color: var(--text);
-      background: var(--card); border: 1px solid var(--border);
-      padding: 6px 12px; border-radius: 999px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.15);
-    }
-    .dm-switch { position: relative; display: inline-block; width: 42px; height: 22px; }
-    .dm-switch input { opacity: 0; width: 0; height: 0; }
-    .dm-slider { position: absolute; cursor: pointer; inset: 0; background: #94a3b8; border-radius: 22px; transition: .2s; }
-    .dm-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
-    .dm-switch input:checked + .dm-slider { background: var(--blue); }
-    .dm-switch input:checked + .dm-slider:before { transform: translateX(20px); }
-
-    /* ── Header ─────────────────────────────────────────────────── */
-    header {
-      background: var(--navy);
-      color: #fff;
-      padding: 56px 24px 40px;
-      text-align: center;
-    }
-    header .eyebrow {
-      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.12em;
-      text-transform: uppercase; color: #93c5fd; margin-bottom: 14px;
-    }
-    header h1 {
-      font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700;
-      letter-spacing: -0.02em; line-height: 1.15;
-    }
-    header h1 span { color: #60a5fa; }
-    header .subtitle {
-      margin-top: 14px; font-size: 1.05rem; color: #cbd5e1;
-      max-width: 600px; margin-left: auto; margin-right: auto;
-    }
-    .team-strip {
-      margin-top: 32px; display: flex; flex-wrap: wrap;
-      justify-content: center; gap: 10px 6px;
-    }
-    .team-strip .name {
-      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 999px; padding: 5px 16px; font-size: 0.88rem;
-      color: #e2e8f0; white-space: nowrap;
-      text-decoration: none; transition: background .15s, border-color .15s;
-    }
-    a.team-strip-link, .team-strip a.name { cursor: pointer; }
-    .team-strip a.name:hover {
-      background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.35); color: #fff;
-    }
-
-    /* ── Tab bar ─────────────────────────────────────────────────── */
-    .tabbar {
-      position: sticky; top: 0; z-index: 900;
-      background: var(--navy);
-      display: flex; justify-content: center; gap: 6px;
-      padding: 0 16px; border-top: 1px solid rgba(255,255,255,0.10);
-    }
-    .tab-btn {
-      appearance: none; border: none; background: transparent;
-      color: #cbd5e1; font-size: 0.95rem; font-weight: 600;
-      padding: 16px 22px; cursor: pointer; position: relative;
-      font-family: inherit; transition: color .15s;
-    }
-    .tab-btn:hover { color: #fff; }
-    .tab-btn.active { color: #fff; }
-    .tab-btn.active::after {
-      content: ''; position: absolute; left: 14px; right: 14px; bottom: 0;
-      height: 3px; background: #60a5fa; border-radius: 3px 3px 0 0;
-    }
-    .tab-btn .sub { display: block; font-size: 0.72rem; font-weight: 500; color: #93a4bd; }
-
-    /* ── Main content ─────────────────────────────────────────────── */
-    main { max-width: 1200px; margin: 0 auto; padding: 48px 24px 80px; }
-
-    .section-label {
-      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
-      text-transform: uppercase; color: var(--blue); margin-bottom: 12px;
-    }
-    .scope-intro { max-width: 760px; margin-bottom: 36px; }
-    .scope-intro h2 {
-      font-size: 1.55rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px;
-    }
-    .scope-intro p { color: var(--muted); font-size: 0.97rem; }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    /* ── Visualization cards ─────────────────────────────────────────── */
-    .viz-grid { display: flex; flex-direction: column; gap: 40px; }
-    .viz-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-    }
-    .viz-card-header { padding: 22px 28px 16px; border-bottom: 1px solid var(--border); }
-    .viz-card-header h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
-    .viz-card-header p { font-size: 0.9rem; color: var(--muted); }
-    .viz-card iframe { display: block; width: 100%; border: none; }
-
-    footer {
-      text-align: center; padding: 28px 16px; font-size: 0.82rem;
-      color: var(--muted); border-top: 1px solid var(--border);
-    }
-  </style>
+  <title>TopicDrift — How Research Themes Evolve Across CS Conferences</title>
+  <meta name="description" content="TopicDrift traces how software-engineering research themes rise and fall across five decades — from ICSE to a corpus of 2,000+ conferences." />
+  <script>
+    // Apply dark mode before first paint to avoid a flash.
+    if (localStorage.getItem("td-dark") === "1") document.documentElement.classList.add("dark");
+  </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-<!-- ── Dark-mode toggle (site-wide) ── -->
-<div class="dm-toggle">
-  <span>Dark mode</span>
-  <label class="dm-switch">
-    <input type="checkbox" id="dm-toggle" />
-    <span class="dm-slider"></span>
-  </label>
-</div>
+<!-- ── Shared top nav ── -->
+<header class="site-header">
+  <a class="brand" href="index.html">Topic<span>Drift</span></a>
+  <nav class="site-nav">
+    <a href="index.html" aria-current="page">Overview</a>
+    <a href="icse.html">ICSE</a>
+    <a href="top10.html">Top 10</a>
+    <a href="all.html">All Conferences</a>
+    <label class="dm-toggle">
+      <span>Dark</span>
+      <span class="dm-switch"><input type="checkbox" id="dm-toggle" /><span class="dm-slider"></span></span>
+    </label>
+  </nav>
+</header>
 
-<!-- ── Header ── -->
-<header>
-  <p class="eyebrow">CS6510 &nbsp;·&nbsp; Northeastern University</p>
+<!-- ── Hero ── -->
+<section class="hero">
+  <p class="eyebrow">CS6510 · Northeastern University</p>
   <h1>Topic<span>Drift</span></h1>
   <p class="subtitle">
-    How research themes evolve across five decades of computer-science
-    conferences — from ICSE alone to a corpus of 2,000+ venues.
+    How research themes rise, fall, and reinvent themselves across five decades
+    of computer-science conferences.
   </p>
   <div class="team-strip">
     <a class="name" href="https://github.com/mmaaseide23" target="_blank" rel="noopener">Michael Maaseide</a>
@@ -170,187 +43,196 @@
     <a class="name" href="https://github.com/reecedigiacomo" target="_blank" rel="noopener">Reece DiGiacomo</a>
     <a class="name" href="https://github.com/bloons1433" target="_blank" rel="noopener">Brian Looney</a>
   </div>
-</header>
-
-<!-- ── Tab bar (scope = a venue filter over one shared topic space) ── -->
-<nav class="tabbar" role="tablist">
-  <button class="tab-btn active" data-scope="icse" role="tab">ICSE<span class="sub">the founding venue</span></button>
-  <button class="tab-btn" data-scope="top10" role="tab">Top 10<span class="sub">flagship SE/PL venues</span></button>
-  <button class="tab-btn" data-scope="all" role="tab">All Conferences<span class="sub">2,000+ venues</span></button>
-</nav>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="icse.html">Explore the visualizations →</a>
+    <a class="btn btn-ghost" href="https://github.com/deen1113/TopicDrift" target="_blank" rel="noopener">View on GitHub</a>
+  </div>
+</section>
 
 <main>
 
-  <!-- ════════════════════ ICSE ════════════════════ -->
-  <section class="tab-panel active" id="panel-icse">
-    <p class="section-label">Scope · ICSE</p>
-    <div class="scope-intro">
-      <h2>The International Conference on Software Engineering</h2>
-      <p>
-        Where TopicDrift began: ~11k ICSE papers (1976–2025), each assigned to the
-        same global topics used by every tab. The streamgraph traces how broad
-        research themes rose and fell; the treemap breaks each decade down into its
-        themes and topics.
+  <!-- ── What it is ── -->
+  <section class="section">
+    <p class="section-label">The Project</p>
+    <h2>What is TopicDrift?</h2>
+    <div class="prose">
+      <p class="lead">
+        TopicDrift is a data-driven map of how computer-science research has changed
+        over time. We take decades of conference papers, discover the topics they
+        cover, and watch those topics drift — emerging, peaking, merging, and fading
+        across the years.
       </p>
-    </div>
-    <div class="viz-grid">
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Research Theme Drift</h3>
-          <p>Overarching themes' share of ICSE papers over 5-year periods. Toggle
-             Share % / Paper Count; click any band for its sub-topics and each
-             one's share of that theme.</p>
-        </div>
-        <iframe src="visualizations/topic_group_streamgraph_icse.html" height="780"
-                title="ICSE theme drift" loading="lazy"></iframe>
-      </article>
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Corpus Composition</h3>
-          <p>Decade → topic. Tile area is paper volume; colour is the topic's
-             identity. Toggle to recolour by citation impact, growth vs. the
-             previous decade, or newly-emerged topics — and click any tile for a
-             decade's era summary or a topic's full stats and papers.</p>
-        </div>
-        <iframe src="visualizations/topic_treemap_icse.html" height="1240"
-                title="ICSE composition treemap" loading="lazy"></iframe>
-      </article>
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Topic Drift Search</h3>
-          <p>Type a keyword — <em>mobile</em>, <em>llm</em>, <em>testing</em> — or
-             click a historical milestone chip to find matching ICSE topics. Selected
-             topics overlay their drift curves, with a star at each topic's peak
-             period; the cards list each topic's most-cited papers.</p>
-        </div>
-        <iframe src="visualizations/topic_drift_search.html?v=2" height="900"
-                title="Topic Drift Search" loading="lazy"></iframe>
-      </article>
+      <p>
+        It started as a study of a single venue, the International Conference on
+        Software Engineering (ICSE), and grew into a single shared topic model fit
+        across the entire indexed conference landscape. The same topics are then
+        viewed through three lenses — ICSE alone, ten flagship venues, and every
+        qualifying conference — so the themes stay directly comparable no matter how
+        wide you zoom.
+      </p>
     </div>
   </section>
 
-  <!-- ════════════════════ TOP 10 ════════════════════ -->
-  <section class="tab-panel" id="panel-top10">
-    <p class="section-label">Scope · Top 10</p>
-    <div class="scope-intro">
-      <h2>Ten flagship software-engineering &amp; PL venues</h2>
-      <p>
-        ICSE, ESEC/FSE, ASE, ISSTA, ICSME, MSR, RE, OOPSLA, PLDI and POPL —
-        the field's most selective conferences, sharing the same topic space as
-        the other tabs so the themes are directly comparable.
-      </p>
-    </div>
-    <div class="viz-grid">
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Research Theme Drift</h3>
-          <p>Theme share across the ten venues over time. Click a band to see its
-             sub-topics and their share of that theme.</p>
-        </div>
-        <iframe src="visualizations/topic_group_streamgraph_top10.html" height="780"
-                title="Top-10 theme drift" loading="lazy"></iframe>
-      </article>
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Corpus Composition</h3>
-          <p>Decade → topic across the ten flagship venues. Tile area is paper
-             volume; colour is the topic's identity — toggle to recolour by growth
-             or newly-emerged topics. Click any tile for a decade's era summary or
-             a topic's papers.</p>
-        </div>
-        <iframe src="visualizations/topic_treemap_top10.html" height="1240"
-                title="Top-10 composition treemap" loading="lazy"></iframe>
-      </article>
+  <!-- ── By the numbers ── -->
+  <section class="section">
+    <p class="section-label">By the Numbers</p>
+    <div class="stat-grid">
+      <div class="stat"><div class="num">2.3M</div><div class="lbl">papers with abstracts, clustered</div></div>
+      <div class="stat"><div class="num">2,000+</div><div class="lbl">DBLP conferences in the corpus</div></div>
+      <div class="stat"><div class="num">174</div><div class="lbl">discovered topics</div></div>
+      <div class="stat"><div class="num">10</div><div class="lbl">overarching research themes</div></div>
+      <div class="stat"><div class="num">~11K</div><div class="lbl">ICSE papers (1976–2025)</div></div>
+      <div class="stat"><div class="num">50</div><div class="lbl">years of research traced</div></div>
     </div>
   </section>
 
-  <!-- ════════════════════ ALL ════════════════════ -->
-  <section class="tab-panel" id="panel-all">
-    <p class="section-label">Scope · All Conferences</p>
-    <div class="scope-intro">
-      <h2>Every venue with usable abstracts</h2>
+  <!-- ── How we did it ── -->
+  <section class="section">
+    <p class="section-label">Methodology</p>
+    <h2>How we went about it</h2>
+    <div class="prose">
       <p>
-        2,000+ DBLP conferences (≥50 papers and ≥50% abstract coverage) spanning
-        all of computer science. The same global topics, now seen across the whole
-        field — watch areas like AI and security swell over the decades.
+        Every paper flows through the same pipeline. We assemble metadata, recover
+        the abstracts that make topic modeling possible, cluster the text into
+        topics, and group those topics into human-readable themes — then slice the
+        result by venue.
       </p>
     </div>
-    <div class="viz-grid">
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Research Theme Drift</h3>
-          <p>Theme share across the entire corpus over time. Click a band for its
-             sub-topics and their share of that theme.</p>
-        </div>
-        <iframe src="visualizations/topic_group_streamgraph_all.html" height="780"
-                title="All-conferences theme drift" loading="lazy"></iframe>
-      </article>
-      <article class="viz-card">
-        <div class="viz-card-header">
-          <h3>Corpus Composition</h3>
-          <p>Decade → topic across every venue in the corpus. Tile area is paper
-             volume; colour is the topic's identity — toggle to recolour by growth
-             or newly-emerged topics. Click any tile for a decade's era summary or
-             a topic's papers.</p>
-        </div>
-        <iframe src="visualizations/topic_treemap_all.html" height="1240"
-                title="All-conferences composition treemap" loading="lazy"></iframe>
-      </article>
+    <div class="steps" style="margin-top:24px">
+      <div class="step">
+        <span class="step-n">1</span>
+        <h3>Collect</h3>
+        <p>Parse the full DBLP dump for titles, authors, years, and DOIs across every
+           indexed conference.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <h3>Enrich</h3>
+        <p>Match papers to OpenAlex to pull in abstracts, concept tags, and citation
+           counts — the text the model actually reads.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <h3>Cluster</h3>
+        <p>Fit BERTopic across the full corpus — embed → UMAP → HDBSCAN — discovering
+           174 topics and assigning every paper to one.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">4</span>
+        <h3>Label &amp; group</h3>
+        <p>A local instruct LLM (Qwen2.5-3B) names each topic; we curate them into 10
+           overarching themes.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">5</span>
+        <h3>Scope &amp; visualize</h3>
+        <p>Filter the one shared model to ICSE, a top-10 set, or all venues, and render
+           streamgraphs, treemaps, and a drift search.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The ten themes ── -->
+  <section class="section">
+    <p class="section-label">Taxonomy</p>
+    <h2>The ten themes</h2>
+    <div class="prose"><p class="muted">
+      The 174 discovered topics roll up into ten overarching themes. The colours
+      below are the same ones used throughout every visualization.
+    </p></div>
+    <div class="theme-list" style="margin-top:20px">
+      <div class="theme-row"><span class="dot" style="background:#0d9488"></span><span class="tn">Artificial Intelligence</span></div>
+      <div class="theme-row"><span class="dot" style="background:#9333ea"></span><span class="tn">System Design</span></div>
+      <div class="theme-row"><span class="dot" style="background:#e11d48"></span><span class="tn">Emerging Platforms</span></div>
+      <div class="theme-row"><span class="dot" style="background:#2563eb"></span><span class="tn">Program Correctness</span></div>
+      <div class="theme-row"><span class="dot" style="background:#ea580c"></span><span class="tn">Defect Management</span></div>
+      <div class="theme-row"><span class="dot" style="background:#16a34a"></span><span class="tn">Human Factors in SE</span></div>
+      <div class="theme-row"><span class="dot" style="background:#d97706"></span><span class="tn">Developer Tooling</span></div>
+      <div class="theme-row"><span class="dot" style="background:#65a30d"></span><span class="tn">Requirements Engineering</span></div>
+      <div class="theme-row"><span class="dot" style="background:#0891b2"></span><span class="tn">Software Testing</span></div>
+      <div class="theme-row"><span class="dot" style="background:#4f46e5"></span><span class="tn">Software Process</span></div>
+    </div>
+  </section>
+
+  <!-- ── Explore ── -->
+  <section class="section">
+    <p class="section-label">What's Here to Use</p>
+    <h2>Explore the data</h2>
+    <div class="prose"><p class="muted">
+      Three interactive scopes, all built on the same topic model. Each pairs a
+      theme-drift streamgraph with a corpus-composition treemap; ICSE adds a
+      keyword-driven drift search.
+    </p></div>
+    <div class="explore-grid" style="margin-top:24px">
+      <a class="explore-card" href="icse.html">
+        <div class="ec-tag">Single venue</div>
+        <h3>ICSE</h3>
+        <p>Where it began — ~11K ICSE papers, plus a keyword drift search to track any
+           topic's rise and fall.</p>
+        <div class="ec-go">Open ICSE →</div>
+      </a>
+      <a class="explore-card" href="top10.html">
+        <div class="ec-tag">Curated set</div>
+        <h3>Top 10 venues</h3>
+        <p>Ten flagship software-engineering &amp; PL conferences, compared on the same
+           shared theme space.</p>
+        <div class="ec-go">Open Top 10 →</div>
+      </a>
+      <a class="explore-card" href="all.html">
+        <div class="ec-tag">Full corpus</div>
+        <h3>All conferences</h3>
+        <p>2,000+ venues across all of computer science — watch fields like AI and
+           security swell over the decades.</p>
+        <div class="ec-go">Open All Conferences →</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── Where we are now ── -->
+  <section class="section">
+    <p class="section-label">Status</p>
+    <h2>Where we've left it</h2>
+    <div class="prose">
+      <p>
+        The end-to-end pipeline runs: from raw DBLP and OpenAlex through a topic model
+        fit on the full corpus to the three published scopes you can explore above. The
+        ICSE scope is the most reliable — it's the venue we've cleaned and validated
+        most. <strong>The topics and themes are not yet as accurate as they need to be,
+        especially at the full "All Conferences" scale</strong>, and improving that
+        accuracy is the headline of the remaining work.
+      </p>
+      <p class="muted">This is an in-progress course project. The biggest open items:</p>
+    </div>
+    <div class="callout" style="margin-top:16px; max-width:var(--prose)">
+      <ul>
+        <li><strong>Accuracy needs to improve.</strong> Topic and theme assignments are
+            usable for spotting broad trends, but a meaningful fraction are mislabeled
+            or coarse — particularly across the All Conferences scope. Treat the wide
+            scopes as directional, not authoritative.</li>
+        <li><strong>The corpus is too broad right now.</strong> Our ingest is pulling in
+            more than just computing-related papers, so non-CS work leaks into the
+            corpus and distorts the themes. Tighter venue and content filtering is
+            needed.</li>
+        <li><strong>More data cleaning required.</strong> Duplicates, missing or
+            mismatched abstracts, and inconsistent venue metadata still need to be
+            scrubbed before the topic space can be trusted at scale.</li>
+        <li><strong>Better topic &amp; theme fitting.</strong> The clustering and the
+            174→10 theme grouping need another pass — finer-grained, better-separated
+            topics and a more principled, less hand-curated theme mapping.</li>
+        <li><strong>Topic labels.</strong> Several LLM-generated topic names are noisy or
+            overlap and would benefit from a human editing pass.</li>
+        <li><strong>Beyond conferences.</strong> Journals and arXiv preprints aren't yet
+            included, so very recent shifts may lag.</li>
+      </ul>
     </div>
   </section>
 
 </main>
 
 <footer>
-  TopicDrift &nbsp;·&nbsp; CS6510 &nbsp;·&nbsp; Northeastern University &nbsp;·&nbsp;
-  one global topic model · three venue scopes
+  TopicDrift · CS6510 · Northeastern University · one global topic model · three venue scopes
 </footer>
 
-<!-- ── Tabs ── -->
-<script>
-  (function () {
-    var btns = document.querySelectorAll(".tab-btn");
-    var panels = document.querySelectorAll(".tab-panel");
-    btns.forEach(function (b) {
-      b.addEventListener("click", function () {
-        var scope = b.dataset.scope;
-        btns.forEach(function (x) { x.classList.toggle("active", x === b); });
-        panels.forEach(function (p) { p.classList.toggle("active", p.id === "panel-" + scope); });
-        // Nudge lazy iframes in the now-visible panel to resize/redraw.
-        window.dispatchEvent(new Event("resize"));
-      });
-    });
-  })();
-</script>
-
-<!-- ── Site-wide dark mode: persists, and drives embedded visualisations ── -->
-<script>
-  (function () {
-    var root = document.documentElement;
-    var cb = document.getElementById("dm-toggle");
-    var KEY = "td-dark";
-    function notifyFrames(on) {
-      document.querySelectorAll("iframe").forEach(function (f) {
-        try { f.contentWindow.postMessage({ type: "td-dark", on: on }, "*"); } catch (e) {}
-      });
-    }
-    function apply(on) {
-      root.classList.toggle("dark", on);
-      cb.checked = on;
-      notifyFrames(on);
-    }
-    apply(localStorage.getItem(KEY) === "1");
-    cb.addEventListener("change", function () {
-      localStorage.setItem(KEY, cb.checked ? "1" : "0");
-      apply(cb.checked);
-    });
-    document.querySelectorAll("iframe").forEach(function (f) {
-      f.addEventListener("load", function () {
-        try { f.contentWindow.postMessage({ type: "td-dark", on: root.classList.contains("dark") }, "*"); } catch (e) {}
-      });
-    });
-  })();
-</script>
-
+<script src="app.js"></script>
 </body>
 </html>

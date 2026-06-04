@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>All Conferences · TopicDrift</title>
+  <script>
+    if (localStorage.getItem("td-dark") === "1") document.documentElement.classList.add("dark");
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">Topic<span>Drift</span></a>
+  <nav class="site-nav">
+    <a href="index.html">Overview</a>
+    <a href="icse.html">ICSE</a>
+    <a href="top10.html">Top 10</a>
+    <a href="all.html" aria-current="page">All Conferences</a>
+    <label class="dm-toggle">
+      <span>Dark</span>
+      <span class="dm-switch"><input type="checkbox" id="dm-toggle" /><span class="dm-slider"></span></span>
+    </label>
+  </nav>
+</header>
+
+<div class="page-head">
+  <div class="inner">
+    <p class="eyebrow">Scope · Full corpus</p>
+    <h1>Every venue with usable abstracts</h1>
+    <p>
+      2,000+ DBLP conferences (≥50 papers and ≥50% abstract coverage) spanning all of
+      computer science. The same global topics, now seen across the whole field —
+      watch areas like AI and security swell over the decades.
+    </p>
+  </div>
+</div>
+
+<main>
+  <div class="callout" style="margin-bottom:36px">
+    <strong>Read this scope as directional, not authoritative.</strong>
+    <ul>
+      <li>Topic and theme accuracy is <strong>not yet where it should be</strong> at this
+          scale — expect a meaningful share of coarse or mislabeled assignments.</li>
+      <li>The corpus currently pulls in <strong>more than computing-related papers</strong>,
+          so non-CS work leaks in and distorts the themes.</li>
+      <li>More <strong>data cleaning</strong> and <strong>better topic/theme fitting</strong>
+          are still needed before the full-corpus numbers can be trusted precisely. The
+          ICSE scope is the most validated.</li>
+    </ul>
+  </div>
+  <div class="viz-grid">
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Research Theme Drift</h3>
+        <p>Theme share across the entire corpus over time. Click a band for its
+           sub-topics and their share of that theme.</p>
+      </div>
+      <iframe src="visualizations/topic_group_streamgraph_all.html" height="780"
+              title="All-conferences theme drift" loading="lazy"></iframe>
+    </article>
+
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Corpus Composition</h3>
+        <p>Decade → topic across every venue in the corpus. Tile area is paper volume;
+           colour is the topic's identity — toggle to recolour by growth or
+           newly-emerged topics. Click any tile for a decade's era summary or a
+           topic's papers.</p>
+      </div>
+      <iframe src="visualizations/topic_treemap_all.html" height="1240"
+              title="All-conferences composition treemap" loading="lazy"></iframe>
+    </article>
+  </div>
+</main>
+
+<footer>
+  TopicDrift · CS6510 · Northeastern University · one global topic model · three venue scopes
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

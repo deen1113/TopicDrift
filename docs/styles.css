@@ -1,0 +1,236 @@
+/* ============================================================================
+   TopicDrift — shared site styles
+   One stylesheet for the overview page and the three scope pages.
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:   #0f1e38;
+  --navy-2: #16294a;
+  --blue:   #2563eb;
+  --blue-l: #60a5fa;
+  --light:  #f8fafc;
+  --border: #e2e8f0;
+  --text:   #1e293b;
+  --muted:  #64748b;
+  --card:   #ffffff;
+  --radius: 12px;
+  --maxw:   1200px;
+  --prose:  720px;
+}
+
+/* Site-wide dark theme — override the palette and everything cascades. */
+html.dark {
+  --navy:   #0a1424;
+  --navy-2: #0f1d33;
+  --blue:   #4a90d9;
+  --blue-l: #7cb3ec;
+  --light:  #161616;
+  --border: #333;
+  --text:   #e6e6e6;
+  --muted:  #9aa3ad;
+  --card:   #232323;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--light);
+  color: var(--text);
+  line-height: 1.65;
+  transition: background .2s, color .2s;
+}
+
+a { color: var(--blue); }
+
+/* ── Top navigation (shared across all pages) ───────────────────────────── */
+.site-header {
+  position: sticky; top: 0; z-index: 900;
+  background: var(--navy);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; gap: 24px;
+  padding: 0 24px; height: 60px;
+}
+.brand {
+  font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
+  color: #fff; text-decoration: none; white-space: nowrap;
+}
+.brand span { color: var(--blue-l); }
+.site-nav {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: #cbd5e1; text-decoration: none; font-size: 0.92rem; font-weight: 600;
+  padding: 8px 14px; border-radius: 8px; transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.site-nav a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+.site-nav a[aria-current="page"] { color: #fff; background: rgba(96,165,250,0.18); }
+
+/* Dark-mode toggle, sits in the nav */
+.dm-toggle {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #cbd5e1; white-space: nowrap;
+}
+.dm-switch { position: relative; display: inline-block; width: 40px; height: 21px; }
+.dm-switch input { opacity: 0; width: 0; height: 0; }
+.dm-slider { position: absolute; cursor: pointer; inset: 0; background: #475569; border-radius: 21px; transition: .2s; }
+.dm-slider:before { content: ''; position: absolute; height: 15px; width: 15px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.dm-switch input:checked + .dm-slider { background: var(--blue); }
+.dm-switch input:checked + .dm-slider:before { transform: translateX(19px); }
+
+/* ── Hero (overview page) ───────────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(165deg, var(--navy) 0%, var(--navy-2) 100%);
+  color: #fff; padding: 72px 24px 64px; text-align: center;
+}
+.hero .eyebrow {
+  font-size: 0.78rem; font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--blue-l); margin-bottom: 16px;
+}
+.hero h1 {
+  font-size: clamp(2.2rem, 5.5vw, 3.6rem); font-weight: 700;
+  letter-spacing: -0.025em; line-height: 1.1;
+}
+.hero h1 span { color: var(--blue-l); }
+.hero .subtitle {
+  margin: 18px auto 0; font-size: 1.1rem; color: #cbd5e1; max-width: 640px;
+}
+.team-strip {
+  margin-top: 30px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 6px;
+}
+.team-strip .name {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 999px; padding: 5px 16px; font-size: 0.88rem;
+  color: #e2e8f0; white-space: nowrap; text-decoration: none;
+  transition: background .15s, border-color .15s;
+}
+.team-strip a.name:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.35); color: #fff; }
+
+.hero-actions {
+  margin-top: 34px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px; border-radius: 999px; font-size: 0.92rem; font-weight: 600;
+  text-decoration: none; cursor: pointer; transition: transform .12s, box-shadow .15s, background .15s;
+  border: 1px solid transparent;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { background: var(--blue); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.35); }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-ghost { background: rgba(255,255,255,0.06); color: #e2e8f0; border-color: rgba(255,255,255,0.22); }
+.btn-ghost:hover { background: rgba(255,255,255,0.14); }
+
+/* ── Page header (scope pages) ──────────────────────────────────────────── */
+.page-head {
+  background: linear-gradient(165deg, var(--navy) 0%, var(--navy-2) 100%);
+  color: #fff; padding: 48px 24px 42px;
+}
+.page-head .inner { max-width: var(--maxw); margin: 0 auto; }
+.page-head .eyebrow {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--blue-l); margin-bottom: 12px;
+}
+.page-head h1 { font-size: clamp(1.7rem, 3.5vw, 2.4rem); font-weight: 700; letter-spacing: -0.02em; }
+.page-head p { margin-top: 12px; color: #cbd5e1; max-width: 760px; font-size: 1rem; }
+
+/* ── Main content ───────────────────────────────────────────────────────── */
+main { max-width: var(--maxw); margin: 0 auto; padding: 56px 24px 80px; }
+
+.section { margin-bottom: 64px; }
+.section:last-child { margin-bottom: 0; }
+.section-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--blue); margin-bottom: 12px;
+}
+.section h2 { font-size: 1.65rem; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 14px; }
+.prose { max-width: var(--prose); }
+.prose p { color: var(--text); font-size: 1.02rem; margin-bottom: 16px; }
+.prose p.lead { font-size: 1.12rem; color: var(--text); }
+.muted { color: var(--muted); }
+
+/* ── Stat cards ─────────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;
+}
+.stat {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.stat .num { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; color: var(--blue); line-height: 1; }
+.stat .lbl { margin-top: 8px; font-size: 0.88rem; color: var(--muted); }
+
+/* ── Pipeline / numbered steps ──────────────────────────────────────────── */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.step {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); position: relative;
+}
+.step .step-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px; background: var(--blue); color: #fff;
+  font-weight: 700; font-size: 0.9rem; margin-bottom: 14px;
+}
+.step h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+.step p { font-size: 0.92rem; color: var(--muted); }
+
+/* ── Explore cards (links to scope pages) ───────────────────────────────── */
+.explore-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.explore-card {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 26px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  transition: transform .14s, box-shadow .14s, border-color .14s;
+}
+.explore-card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(15,30,56,0.12); border-color: var(--blue); }
+.explore-card .ec-tag {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 10px;
+}
+.explore-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+.explore-card p { font-size: 0.92rem; color: var(--muted); }
+.explore-card .ec-go { margin-top: 14px; font-size: 0.88rem; font-weight: 600; color: var(--blue); }
+
+/* ── Theme legend list ──────────────────────────────────────────────────── */
+.theme-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 24px; }
+.theme-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; }
+.theme-row .dot { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.theme-row .tn { font-weight: 600; }
+.theme-row .tc { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ── Callout (limitations / notes) ──────────────────────────────────────── */
+.callout {
+  background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--blue);
+  border-radius: var(--radius); padding: 20px 24px;
+}
+.callout ul { margin: 8px 0 0 18px; }
+.callout li { margin-bottom: 8px; color: var(--text); font-size: 0.98rem; }
+.callout li:last-child { margin-bottom: 0; }
+
+/* ── Visualization cards (scope pages) ──────────────────────────────────── */
+.viz-grid { display: flex; flex-direction: column; gap: 40px; }
+.viz-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.viz-card-header { padding: 22px 28px 16px; border-bottom: 1px solid var(--border); }
+.viz-card-header h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+.viz-card-header p { font-size: 0.9rem; color: var(--muted); }
+.viz-card iframe { display: block; width: 100%; border: none; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+footer {
+  text-align: center; padding: 32px 16px; font-size: 0.82rem;
+  color: var(--muted); border-top: 1px solid var(--border);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .site-header { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 10px 16px; }
+  .site-nav { margin-left: 0; width: 100%; }
+  main { padding: 40px 18px 64px; }
+}

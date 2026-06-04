@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICSE · TopicDrift</title>
+  <script>
+    if (localStorage.getItem("td-dark") === "1") document.documentElement.classList.add("dark");
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">Topic<span>Drift</span></a>
+  <nav class="site-nav">
+    <a href="index.html">Overview</a>
+    <a href="icse.html" aria-current="page">ICSE</a>
+    <a href="top10.html">Top 10</a>
+    <a href="all.html">All Conferences</a>
+    <label class="dm-toggle">
+      <span>Dark</span>
+      <span class="dm-switch"><input type="checkbox" id="dm-toggle" /><span class="dm-slider"></span></span>
+    </label>
+  </nav>
+</header>
+
+<div class="page-head">
+  <div class="inner">
+    <p class="eyebrow">Scope · Single venue</p>
+    <h1>The International Conference on Software Engineering</h1>
+    <p>
+      Where TopicDrift began: ~11K ICSE papers (1976–2025), each assigned to the same
+      global topics used by every scope. The streamgraph traces how broad research
+      themes rose and fell; the treemap breaks each decade into its themes and topics;
+      the drift search lets you follow any keyword over time.
+    </p>
+  </div>
+</div>
+
+<main>
+  <div class="viz-grid">
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Research Theme Drift</h3>
+        <p>Overarching themes' share of ICSE papers over 5-year periods. Toggle
+           Share % / Paper Count; click any band for its sub-topics and each one's
+           share of that theme.</p>
+      </div>
+      <iframe src="visualizations/topic_group_streamgraph_icse.html" height="780"
+              title="ICSE theme drift" loading="lazy"></iframe>
+    </article>
+
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Corpus Composition</h3>
+        <p>Decade → topic. Tile area is paper volume; colour is the topic's identity.
+           Toggle to recolour by citation impact, growth vs. the previous decade, or
+           newly-emerged topics — and click any tile for a decade's era summary or a
+           topic's full stats and papers.</p>
+      </div>
+      <iframe src="visualizations/topic_treemap_icse.html" height="1240"
+              title="ICSE composition treemap" loading="lazy"></iframe>
+    </article>
+
+    <article class="viz-card">
+      <div class="viz-card-header">
+        <h3>Topic Drift Search</h3>
+        <p>Type a keyword — <em>mobile</em>, <em>llm</em>, <em>testing</em> — or click a
+           historical milestone chip to find matching ICSE topics. Selected topics
+           overlay their drift curves, with a star at each topic's peak period; the
+           cards list each topic's most-cited papers.</p>
+      </div>
+      <iframe src="visualizations/topic_drift_search.html?v=2" height="900"
+              title="Topic Drift Search" loading="lazy"></iframe>
+    </article>
+  </div>
+</main>
+
+<footer>
+  TopicDrift · CS6510 · Northeastern University · one global topic model · three venue scopes
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
