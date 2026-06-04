@@ -80,48 +80,63 @@
 })();
 
 /* Easter egg — five fast clicks on the TopicDrift brand reveals ian.png
-   full-screen. Click anywhere (or press Esc) to dismiss. */
+   full-screen. The brand is a link to index.html, so a click normally
+   navigates/reloads the page and would wipe an in-memory counter; we keep
+   the click timestamps in sessionStorage so they survive that navigation,
+   and we check the count both on each click and on page load. Click
+   anywhere (or press Esc) to dismiss. */
 (function () {
   var NEEDED = 5;      // clicks required
-  var WINDOW = 1500;   // …within this many ms
-  var clicks = [];
+  var WINDOW = 2500;   // …within this many ms (must span a page reload)
+  var STORE = "td-egg-clicks";
   var overlay = null;
 
-  function close() {
+  function recent() {
+    var now = Date.now(), arr = [];
+    try { arr = JSON.parse(sessionStorage.getItem(STORE)) || []; } catch (e) {}
+    return arr.filter(function (t) { return now - t < WINDOW; });
+  }
+  function save(arr) { try { sessionStorage.setItem(STORE, JSON.stringify(arr)); } catch (e) {} }
+  function clear() { try { sessionStorage.removeItem(STORE); } catch (e) {} }
+
+  function onKey(e) { if (e.key === "Escape") hide(); }
+  function hide() {
     if (overlay) { overlay.remove(); overlay = null; }
     document.removeEventListener("keydown", onKey);
   }
-
-  function onKey(e) { if (e.key === "Escape") close(); }
 
   function reveal() {
     if (overlay) return;
     overlay = document.createElement("div");
     overlay.style.cssText =
-      "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);" +
+      "position:fixed;inset:0;z-index:2147483647;background:#000;" +
       "display:flex;align-items:center;justify-content:center;cursor:pointer;";
     var img = document.createElement("img");
     img.src = "visualizations/ian.png";
     img.alt = "ian";
-    img.style.cssText = "max-width:100vw;max-height:100vh;object-fit:contain;";
+    img.style.cssText = "width:100%;height:100%;object-fit:contain;";
     overlay.appendChild(img);
-    overlay.addEventListener("click", close);
+    overlay.addEventListener("click", hide);
     document.addEventListener("keydown", onKey);
     document.body.appendChild(overlay);
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    // A click on a previous page may have just put us over the threshold.
+    if (recent().length >= NEEDED) { clear(); reveal(); }
+
     var brand = document.querySelector(".brand");
     if (!brand) return;
     brand.addEventListener("click", function (e) {
-      var now = Date.now();
-      clicks.push(now);
-      clicks = clicks.filter(function (t) { return now - t < WINDOW; });
-      if (clicks.length >= NEEDED) {
-        e.preventDefault(); // suppress navigation on the rapid final click
-        clicks = [];
+      var arr = recent();
+      arr.push(Date.now());
+      save(arr);
+      if (arr.length >= NEEDED) {
+        e.preventDefault(); // stay on the page and show the image now
+        clear();
         reveal();
       }
+      // otherwise let the link navigate; the counter persists across the load
     });
   });
 })();
