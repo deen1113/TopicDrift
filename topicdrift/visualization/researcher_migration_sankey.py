@@ -140,6 +140,7 @@ def plot(flows, buckets, top_ids, labels):
     transitions = [b for b in buckets if b in flows]
     timeline = sorted({b for b in transitions} | {b + BUCKET for b in transitions})
     col = {b: i for i, b in enumerate(timeline)}
+
     def yof(t):
         return n_topics - 1 - rank[t]  # oldest topic on top
 
