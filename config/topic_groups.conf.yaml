@@ -1,9 +1,8 @@
-# config/topic_groups.conf.yaml — global topics fitted into the
-# original 10 ICSE themes (map_seed_themes.py, nearest-anchor).
-# Editable: move labels between themes, then run apply_topic_groups.py.
+# config/topic_groups.conf.yaml — regenerated from the full-corpus run
+# (174 topics -> 10 ICSE themes). Editable; re-run apply_topic_groups to stamp.
 
 groups:
-- name: AI for Software Engineering
+- name: Artificial Intelligence
   color: '#0d9488'
   topics:
   - Semantic Role Labeling
@@ -14,43 +13,43 @@ groups:
   - Temporal Pose Estimation
   - Kinematic Rehabilitation
   - Optimized Neural Models
+  - Vegetation Health Assessment
   - Voice Enhancement Techniques
   - Image Enhancement Techniques
+  - Robotic Perception
+  - Superresolution Estimation
   - Sentiment Extraction
+  - Feature Selection Efficiency
   - Multiobjective Evolutionary Algorithms
   - Twisted Modular Hand
   - Recommender Integration
   - Gameplay Analysis
   - Value-aware Active Learning
+  - Sparse Reconstruction
   - Dynamic Fleet Management
   - Syllable Recognition Enhancements
+  - Robust Particle Filter
   - Brain Signal Analysis
   - Graph Homomorphism
   - Adversarial Detection Enhancement
   - Document Character Extraction
+  - Enhanced Gene Analysis
   - Graph Neural Networks
   - Neuromorphic Computing
   - Gaze Interaction Analysis
   - Fuzzy Linguistic Modeling
   - Crop Disease Detection
   - Spatiotemporal Forecasting
+  - Hyperspectral Unmixing
   - Brain Connectivity Study
   - Volatility Forecasting
-  - Gesture Sign Recognition
-  - Infectious Disease Modeling
-  - Mitigating Bias
-  - Vegetation Health Assessment
-  - Superresolution Estimation
-  - Stochastic Systems Biology
-  - Sparse Reconstruction
-  - Robotic Perception
-  - Feature Selection Efficiency
-  - Robust Particle Filter
-  - Enhanced Gene Analysis
-  - Hyperspectral Unmixing
   - Fuzzy Rule Mining
-  - Credit Risk Modeling
+  - Gesture Sign Recognition
+  - Stochastic Systems Biology
+  - Infectious Disease Modeling
   - Feature Selection
+  - Credit Risk Modeling
+  - Mitigating Bias
 - name: System Design
   color: '#9333ea'
   topics:
@@ -58,18 +57,25 @@ groups:
   - Healthcare Integration
   - P4 Optimization
   - Inverter Stability Enhancement
+  - Fault Tolerance Middleware
   - Resource Balancing
   - Segmented Bus
+  - Microsensor Fabrication
+  - Enterprise Architecture Influence
+  - Low Power Analog
   - Parallel Optimization
   - Graph Optimization
   - Optimized Tsv Routing
   - Cache Disturbance Minimization
   - Service Oriented Architecture
   - Network Scalability
+  - Voltage Stress Testing
+  - Combinatorial Auctions
   - Gamut Mapping Studies
   - Txcache Enhancement
   - Dynamic Scheduling
   - Optimized Cloud Deployment
+  - Optimized Multipliers
   - Clock Jitter Analysis
   - Sensorless Control
   - Optical Network Enhancements
@@ -81,24 +87,19 @@ groups:
   - Optimized Noc Routing
   - Dynamic Adaptation
   - Software Quality Assurance
+  - Optical Integration Advances
+  - Memristive Integration
   - Adls Guided Design
   - Digital Twin Integration
   - Microservice Integration
-  - Memristive Integration
-  - Enterprise Architecture Influence
-  - Fault Tolerance Middleware
-  - Microsensor Fabrication
-  - Optical Integration Advances
-  - Low Power Analog
-  - Voltage Stress Testing
-  - Optimized Multipliers
-  - Combinatorial Auctions
 - name: Emerging Platforms
   color: '#e11d48'
   topics:
   - Adaptive Routing Metrics
   - Cellular Interference Mitigation
+  - Massive Mimo Security
   - Heart Health Monitor
+  - Fpga Decoder Design
   - Node Localization
   - Iot Security
   - Ddos Mitigation
@@ -111,11 +112,9 @@ groups:
   - Energy Efficient Apps
   - Optimized Amplifier Designs
   - Smartsec
+  - Wideband Antenna Design
   - Smart City Integration
   - Tag Conflict Mitigation
-  - Wideband Antenna Design
-  - Massive Mimo Security
-  - Fpga Decoder Design
 - name: Program Correctness
   color: '#2563eb'
   topics:
@@ -124,24 +123,24 @@ groups:
   - Blockchain Scalability
   - Quantitative Verification
   - Type Equivalence
+  - Secure Federated Learning
   - Safety Assurance Tech
   - Quantum Hybrid Algorithms
+  - Stochastic Petri Net
+  - Fingerprint Security
   - Optimizing Concurrent Bugs
+  - Bit Complexity Equations
   - Differential Privacy Preserve
+  - Watermark Security Analysis
+  - Advanced Malware Detection
   - Static Analysis Enhancements
   - Legal Case Analysis
   - Phishing Detection
   - Grammar Comparison
   - Slice Dependence Graph
+  - Steganalysis Analysis
   - Aspect Integration Enhancements
   - Symbolic Path Analysis
-  - Secure Federated Learning
-  - Advanced Malware Detection
-  - Steganalysis Analysis
-  - Stochastic Petri Net
-  - Bit Complexity Equations
-  - Fingerprint Security
-  - Watermark Security Analysis
 - name: Defect Management
   color: '#ea580c'
   topics:
@@ -162,35 +161,35 @@ groups:
   color: '#16a34a'
   topics:
   - Virtual Haptics Integration
+  - Interactive Shading Models
   - Humanrobot Interaction
   - User Experience Design
   - Diversity Engineering
+  - Enhancing Diversity Outreach
   - Ethics Ai Ethics
   - Crowd Quality Assurance
-  - Interactive Shading Models
-  - Enhancing Diversity Outreach
 - name: Developer Tooling
   color: '#d97706'
   topics:
   - Optimized Encoding Techniques
   - Interactive Analytics
   - Clone Detection
+  - Software Data Analysis
   - Justin Tuning
   - Code Semantics
+  - Coca Debugger
   - App Review Insights
   - Code Element Recommendations
-  - Coca Debugger
-  - Software Data Analysis
   - Spreadsheets Analysis
 - name: Requirements Engineering
   color: '#65a30d'
   topics:
+  - Semantic Web Crawling
   - Ontology Integration
   - Xml Schema Reformulation
   - Regulatory Adherence
   - Natural Lang Req
   - Intelligent Trace
-  - Semantic Web Crawling
 - name: Software Testing
   color: '#0891b2'
   topics:
@@ -205,5 +204,5 @@ groups:
   - Workflow Integration
   - Effort Prediction
   - Software Health Management
-  - Technical Debt Management
   - Service Oriented Garbage
+  - Technical Debt Management

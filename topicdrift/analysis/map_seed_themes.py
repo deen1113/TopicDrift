@@ -158,7 +158,7 @@ SEEDS: dict[str, tuple[str, list[str]]] = {
             "Maintenance",
         ],
     ),
-    "AI for Software Engineering": (
+    "Artificial Intelligence": (
         "#0d9488",
         [
             "Machine Learning",
