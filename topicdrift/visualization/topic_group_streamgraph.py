@@ -96,11 +96,12 @@ def build_fig(data: dict, group_color: dict, title: str) -> go.Figure:
                 name=g,
                 mode="lines",
                 stackgroup="one",
-                hoveron="points+fills",
+                # Native hover is disabled (hovermode=False below); a custom
+                # cursor-driven tooltip in the post-script handles band hover.
+                hoverinfo="skip",
                 fillcolor=c,
                 opacity=0.8,
                 line=dict(color=c, width=1.2),
-                hovertemplate=f"<b>{g}</b><br>period: %{{x}}s<br>share: %{{y:.1%}}<extra></extra>",
             )
         )
     fig.update_layout(
@@ -113,7 +114,10 @@ def build_fig(data: dict, group_color: dict, title: str) -> go.Figure:
         ),
         yaxis=dict(title="Share of papers in period", tickformat=".0%"),
         legend=dict(title="Theme", x=1.01, y=1.0),
-        hovermode="x unified",
+        # Disable Plotly's built-in hover entirely — filled areas only surface
+        # the trace name (not period/share), and "x unified" stacked all themes
+        # into one flickering box. The post-script renders a custom tooltip.
+        hovermode=False,
         template="plotly_white",
         margin=dict(t=60, l=60, r=240, b=60),
         height=560,
@@ -143,9 +147,8 @@ var PAL={
 function pal(){return dark?PAL.dark:PAL.light;}
 
 function traces(m){return DATA.groups.map(function(g){var c=COLORS[g]||"#94a3b8";return{
-  type:"scatter",mode:"lines",stackgroup:"one",hoveron:"points+fills",
-  x:DATA.buckets,y:DATA[m][g],name:g,fillcolor:rgba(c,0.8),line:{color:c,width:1.2},
-  hovertemplate:"<b>"+esc(g)+"</b><br>period: %{x}s<br>"+(m==="share"?"share: %{y:.1%}":"papers: %{y}")+"<extra></extra>"};});}
+  type:"scatter",mode:"lines",stackgroup:"one",hoverinfo:"skip",
+  x:DATA.buckets,y:DATA[m][g],name:g,fillcolor:rgba(c,0.8),line:{color:c,width:1.2}};});}
 function layout(m){var y=m==="share"?{title:"Share of papers in period",tickformat:".0%"}:{title:"Papers in period",tickformat:""};
   return Object.assign({},base,{yaxis:Object.assign({},base.yaxis,y)});}
 // Merge dark overrides (page/plot background, font, axes) onto a layout. Light
@@ -193,7 +196,47 @@ function showPanel(group,bucket){
       +"<div style='font-size:0.78rem;color:"+p.sub+";'><b style='color:"+p.head+";'>"+pc+"%</b> of theme \xb7 "+t.papers+" papers</div></div>";});
   h+="</div></div>";panel.innerHTML=h;panel.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
-gd.on("plotly_click",function(ev){var pt=ev.points[0];showPanel(pt.data.name,pt.x);});
+// ── custom cursor-driven tooltip + drilldown ────────────────────────────────
+// Plotly's native hover can't label a stacked band between its data points
+// (filled-area hover only shows the trace name), so we map the cursor to a
+// (theme, bucket) ourselves from the live axis ranges and drive both the
+// floating tooltip and the click drilldown from the same lookup — which also
+// guarantees clicks snap to a real bucket instead of an interpolated x.
+var tip=document.createElement("div");
+tip.style.cssText="position:fixed;pointer-events:none;z-index:9999;display:none;padding:6px 10px;border-radius:6px;border:1px solid;font-family:-apple-system,sans-serif;font-size:12px;line-height:1.35;box-shadow:0 2px 8px rgba(0,0,0,.18);white-space:nowrap;";
+document.body.appendChild(tip);
+
+// Pixel (relative to the plot div) → (theme, bucket) using the live axes.
+function locate(evt){
+  var fl=gd._fullLayout; if(!fl) return null;
+  var xa=fl.xaxis, ya=fl.yaxis; if(!xa||!ya||!xa.range||!ya.range) return null;
+  var bb=gd.getBoundingClientRect();
+  var px=evt.clientX-bb.left-xa._offset, py=evt.clientY-bb.top-ya._offset;
+  if(px<0||px>xa._length||py<0||py>ya._length) return null;
+  var xr=xa.range, yr=ya.range;
+  var xd=xr[0]+(px/xa._length)*(xr[1]-xr[0]);
+  var yd=yr[1]-(py/ya._length)*(yr[1]-yr[0]);
+  if(yd<0) return null;
+  var bi=0,best=Infinity;                       // nearest 5-year bucket
+  for(var i=0;i<DATA.buckets.length;i++){var d=Math.abs(DATA.buckets[i]-xd);if(d<best){best=d;bi=i;}}
+  var cum=0,gi=-1;                              // which stacked band holds yd
+  for(var j=0;j<DATA.groups.length;j++){cum+=DATA[mode][DATA.groups[j]][bi];if(yd<=cum){gi=j;break;}}
+  if(gi<0) return null;                         // above the stack — empty space
+  return {group:DATA.groups[gi],bucket:DATA.buckets[bi],value:DATA[mode][DATA.groups[gi]][bi]};
+}
+
+function showTip(evt,loc){var p=pal(),c=COLORS[loc.group]||"#94a3b8";
+  var v=mode==="share"?(loc.value*100).toFixed(1)+"%":loc.value.toLocaleString()+" papers";
+  var vlab=mode==="share"?"share":"papers";
+  tip.style.background=dark?"#262626":"#fff";tip.style.borderColor=dark?"#3a3a3a":"#e2e8f0";tip.style.color=p.head;
+  tip.innerHTML="<div style='font-weight:600;'><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:"+c+";margin-right:6px;vertical-align:middle;'></span>"+esc(loc.group)+"</div>"
+    +"<div style='color:"+p.sub+";margin-top:2px;'>"+loc.bucket+"s \xb7 "+vlab+" <b style='color:"+p.head+";'>"+v+"</b></div>";
+  tip.style.display="block";tip.style.left=(evt.clientX+14)+"px";tip.style.top=(evt.clientY+14)+"px";}
+function hideTip(){tip.style.display="none";}
+
+gd.addEventListener("mousemove",function(evt){var loc=locate(evt);if(loc)showTip(evt,loc);else hideTip();});
+gd.addEventListener("mouseleave",hideTip);
+gd.addEventListener("click",function(evt){var loc=locate(evt);if(loc)showPanel(loc.group,loc.bucket);});
 
 // Dark mode is owned by the host page (the site posts {type:"td-dark",on} into
 // the iframe on load and on toggle); repaint the figure + custom UI to match.
