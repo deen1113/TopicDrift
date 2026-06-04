@@ -31,6 +31,27 @@ SRC = INTERIM_DIR / "dblp_conf.parquet"
 DEST = INTERIM_DIR / "conf_enriched.parquet"
 
 
+def _venue_abstract_map() -> dict[str, str]:
+    """dblp_key -> abstract from the per-venue Workflow-A silver parquets.
+
+    The DOI scan only recovers abstracts for papers DBLP has a DOI for, which
+    excludes most pre-1990 conference papers. The per-venue `make venue-deep`
+    pipeline (enrich_openalex --title-pass + ACM scrape) recovers abstracts for
+    those DOI-less rows by title match. Those parquets are keyed by the same
+    DBLP key, so we can fold their abstracts back into the pooled corpus to fill
+    gaps the scan missed. Returns {} when no venue parquets are present."""
+    out: dict[str, str] = {}
+    for path in sorted(INTERIM_DIR.glob("*_enriched.parquet")):
+        if path.name == DEST.name:
+            continue
+        cols = pd.read_parquet(path, columns=["dblp_key", "abstract"])
+        cols = cols[cols["abstract"].fillna("").str.len() > 0]
+        out.update(dict(zip(cols["dblp_key"], cols["abstract"])))
+    if out:
+        log.info("  venue-abstract fallback: %d keys from per-venue parquets", len(out))
+    return out
+
+
 def _build_doi_abstract_map() -> dict[str, str]:
     """Read every scan batch file; return doi (normalized) -> reconstructed abstract."""
     batch_files = [p for p in OA_SCAN_CACHE.glob("*.json") if p.name != "_scan_summary.json"]
@@ -67,6 +88,17 @@ def build() -> None:
     doi_norm = df["doi"].map(normalize_doi)
     df["abstract"] = doi_norm.map(doi_abstract)
     df["has_abstract"] = df["abstract"].fillna("").str.len() > 0
+
+    # Fallback: fill abstracts the DOI scan missed from the per-venue silver
+    # parquets (recovers DOI-less early-conference papers, e.g. ICSE pre-1990).
+    venue_abs = _venue_abstract_map()
+    if venue_abs:
+        missing = ~df["has_abstract"]
+        df.loc[missing, "abstract"] = df.loc[missing, "dblp_key"].map(venue_abs)
+        df["has_abstract"] = df["abstract"].fillna("").str.len() > 0
+        n_filled = int((missing & df["has_abstract"]).sum())
+        log.info("  filled %d previously-missing abstracts from venue parquets", n_filled)
+
     df["text"] = (df["title"].map(normalize) + " " + df["abstract"].map(normalize)).str.strip()
 
     out = df[["conf", "dblp_key", "title", "year", "doi", "abstract", "has_abstract", "text"]]
