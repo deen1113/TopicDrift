@@ -4,9 +4,10 @@ VENUE  ?= icse
 .DEFAULT_GOAL := help
 
 .PHONY: help install \
-        dump scan \
+        dump scan rebuild-corpus conf-acm \
         venue titles acm venue-deep \
         corpus topics topics-all groups apply figures site analysis \
+        human-review validate \
         zenodo status clean-data
 
 SCOPES          := icse top10 all
@@ -34,7 +35,12 @@ help:  ## Show this help
 	@awk 'BEGIN{FS=":.*?## "} /^(venue|titles|acm|venue-deep):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\nWorkflow B — multi-conference topic drift (icse / top10 / all).  Requires: make scan\n"
 	@printf "  Scopes live in config/venues.yaml. Each figure target writes one HTML per scope.\n"
-	@awk 'BEGIN{FS=":.*?## "} /^(corpus|topics|topics-all|groups|apply|figures|site|analysis):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "  Optional enrichment bridge (run before corpus if a venue has ACM-hosted papers):\n"
+	@printf "    make venue-deep VENUE=icse   # full per-venue enrichment (OpenAlex + ACM scrape)\n"
+	@printf "    make conf-acm   VENUE=icse   # ACM-scrape only + rebuild conf_enriched (skip if venue-deep already ran)\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(rebuild-corpus|conf-acm|corpus|topics|topics-all|groups|apply|figures|site|analysis):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@printf "\nValidation (paper accuracy / coherence checks):\n"
+	@awk 'BEGIN{FS=":.*?## "} /^(human-review|validate):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\nExtras:\n"
 	@awk 'BEGIN{FS=":.*?## "} /^(zenodo|status|clean-data):.*?## /{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\n"
@@ -52,6 +58,13 @@ dump:  ## Download + parse DBLP XML → dblp_conf.parquet (~30 min, ~1 GB)
 
 scan: dump  ## dump + OpenAlex abstract scan + pooled corpus (~days, resumable)
 	$(PYTHON) -m topicdrift.ingest.conf_abstract_report
+	$(PYTHON) -m topicdrift.ingest.build_conf_corpus
+
+rebuild-corpus:  ## Rebuild conf_enriched from scan cache + any per-venue parquets (no re-scan)
+	$(PYTHON) -m topicdrift.ingest.build_conf_corpus
+
+conf-acm:  ## ACM-scrape VENUE into <venue>_enriched, then rebuild conf_enriched (needs cookies)
+	$(PYTHON) -m topicdrift.ingest.enrich_acm $(VENUE)
 	$(PYTHON) -m topicdrift.ingest.build_conf_corpus
 
 # ───────── Workflow A — single or multiple venues ─────────
@@ -111,6 +124,14 @@ site: figures  ## figures + copy HTML into docs/visualizations/ for the static s
 	cp outputs/figures/topic_treemap_*.html docs/visualizations/
 
 analysis: corpus topics groups apply site  ## End-to-end: corpus → topics → groups → apply → site
+
+CONF ?=
+
+human-review:  ## Interactive annotation session (CONF=conf/icse to restrict venue)
+	$(PYTHON) -m topicdrift.analysis.human_review $(if $(CONF),--conf $(CONF))
+
+validate:  ## Validation tasks A–D → data/validation/ + outputs/figures/val_*
+	$(PYTHON) -m topicdrift.analysis.validation
 
 # ───────── Zenodo deposit ─────────────────────────────────
 # Packages the pipeline outputs that reviewers need to reproduce figures without

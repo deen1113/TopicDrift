@@ -272,7 +272,7 @@ def build_report() -> None:
         raise SystemExit(
             f"\nScan incomplete: {n_cached:,}/{n_total:,} batches cached ({pct:.1f}%).\n"
             "OpenAlex's daily budget is likely exhausted (resets midnight UTC). "
-            "Cached batches are saved — re-run `make conf-report PYTHON=.venv/bin/python` "
+            "Cached batches are saved — re-run `make scan PYTHON=.venv/bin/python` "
             "after the reset to continue. The report is written only once all batches are cached."
         )
     table = _aggregate(df, scan)

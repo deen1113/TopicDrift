@@ -1,7 +1,7 @@
 """
 report.py — Build the human-readable preview CSV.
 
-Reads:  data/interim/<venue>_enriched.parquet  (from src/ingest/enrich_openalex.py)
+Reads:  data/interim/<venue>_enriched.parquet  (from enrich_openalex.py via `make venue`)
 Writes: outputs/tables/<venue>_papers_preview.csv
 
 Same row-grain as silver, denormalised and sorted so a person can skim it in

@@ -7,7 +7,6 @@ Treemap figure with colour modes and an inline JS panel, then writes the HTML.
 
 import json
 import logging
-import math
 import re
 
 import plotly.graph_objects as go
@@ -401,7 +400,7 @@ gd.on("plotly_click", function(d){
 """
 
 
-def _nodes(agg, has_cites, root_label, group_colors):
+def _nodes(agg, root_label, group_colors):
     """Flatten the aggregate into parallel node arrays for go.Treemap.
 
     The hierarchy is root → decade → theme → topic. Returns ids, labels,
@@ -410,16 +409,9 @@ def _nodes(agg, has_cites, root_label, group_colors):
 
     ids, labels, parents, values, hovers = [], [], [], [], []
     bg_id, fg_id = [], []
-    bg_imp, fg_imp = [], []
     bg_grow, fg_grow, bg_new, fg_new = [], [], [], []
 
-    log_lo = log_span = 0.0
-    if has_cites:
-        med = agg["median_citations"]
-        log_lo = math.log1p(med.min())
-        log_span = (math.log1p(med.max()) - log_lo) or 1.0
-
-    def push(node_id, label, parent, value, hover_html, ident, imp, grow, new):
+    def push(node_id, label, parent, value, hover_html, ident, grow, new):
         ids.append(node_id)
         labels.append(label.replace(" · ", "<br>"))
         parents.append(parent)
@@ -431,9 +423,6 @@ def _nodes(agg, has_cites, root_label, group_colors):
         fg_grow.append(grow[1])
         bg_new.append(new[0])
         fg_new.append(new[1])
-        if has_cites:
-            bg_imp.append(imp[0])
-            fg_imp.append(imp[1])
 
     neutral = (NEUTRAL_BG, NEUTRAL_FG)
     total = int(agg["papers"].sum())
@@ -443,7 +432,6 @@ def _nodes(agg, has_cites, root_label, group_colors):
         "",
         total,
         f"<b>{root_label}</b><br>{total} papers",
-        neutral,
         neutral,
         neutral,
         neutral,
@@ -462,7 +450,6 @@ def _nodes(agg, has_cites, root_label, group_colors):
             neutral,
             neutral,
             neutral,
-            neutral,
         )
 
         theme_papers = dsub.groupby("theme")["papers"].sum().sort_values(ascending=False)
@@ -473,24 +460,16 @@ def _nodes(agg, has_cites, root_label, group_colors):
             gcol = group_colors.get(theme, NEUTRAL_BG)
             gpair = (gcol, _text_on(gcol))
             thover = f"<b>{theme}</b><br>{tp} papers · {len(tsub)} topics"
-            push(theme_id, theme, dec_id, tp, thover, gpair, gpair, gpair, gpair)
+            push(theme_id, theme, dec_id, tp, thover, gpair, gpair, gpair)
 
             for r in tsub.itertuples():
                 grow = _growth_color(r.growth_state, r.l2fc)
                 is_new = r.growth_state == "new"
                 new_bg = GROWTH_NEW if is_new else EMERGE_GREY
-                hover = f"<b>{r.topic}</b><br><i>{r.keywords}</i><br>{theme}<br>{r.papers} papers"
-                imp = neutral
-                if has_cites:
-                    imp_c = sample_colorscale(
-                        "Turbo", (math.log1p(r.median_citations) - log_lo) / log_span
-                    )[0]
-                    imp = (imp_c, _text_on(imp_c))
-                    hover += (
-                        f"<br>median {r.median_citations:.0f} · mean {r.mean_citations:.1f} citations"
-                        f"<br>total {int(r.total_citations)} citations"
-                    )
-                hover += _growth_hover(r.growth_state, r.growth_pct, r.prev_decade)
+                hover = (
+                    f"<b>{r.topic}</b><br><i>{r.keywords}</i><br>{theme}<br>{r.papers} papers"
+                    + _growth_hover(r.growth_state, r.growth_pct, r.prev_decade)
+                )
                 push(
                     f"{theme_id}/{r.topic_id}",
                     r.topic,
@@ -498,7 +477,6 @@ def _nodes(agg, has_cites, root_label, group_colors):
                     int(r.papers),
                     hover,
                     gpair,
-                    imp,
                     (grow, _text_on(grow)),
                     (new_bg, _text_on(new_bg)),
                 )
@@ -512,8 +490,6 @@ def _nodes(agg, has_cites, root_label, group_colors):
         hovers=hovers,
         bg_id=bg_id,
         fg_id=fg_id,
-        bg_imp=bg_imp,
-        fg_imp=fg_imp,
         bg_grow=bg_grow,
         fg_grow=fg_grow,
         bg_new=bg_new,
@@ -522,9 +498,9 @@ def _nodes(agg, has_cites, root_label, group_colors):
     )
 
 
-def plot(scope, agg, papers, meta, group_colors, has_cites):
+def plot(scope, agg, papers, meta, group_colors):
     root_label = SCOPE_TITLES.get(scope, scope)
-    n = _nodes(agg, has_cites, root_label, group_colors)
+    n = _nodes(agg, root_label, group_colors)
 
     fig = go.Figure(
         go.Treemap(
@@ -546,17 +522,6 @@ def plot(scope, agg, papers, meta, group_colors, has_cites):
 
     modes = [
         {"label": "Theme", "key": "identity", "bg": n["bg_id"], "fg": n["fg_id"]},
-    ]
-    if has_cites:
-        modes.append(
-            {
-                "label": "Impact (median citations)",
-                "key": "impact",
-                "bg": n["bg_imp"],
-                "fg": n["fg_imp"],
-            }
-        )
-    modes += [
         {
             "label": "Growth vs previous decade",
             "key": "growth",
@@ -586,18 +551,6 @@ def plot(scope, agg, papers, meta, group_colors, has_cites):
             "swatches": [[GROWTH_NEW, "new this decade"], [EMERGE_GREY, "existing topic"]],
         },
     }
-    if has_cites:
-        med = agg["median_citations"]
-        log_lo = math.log1p(med.min())
-        log_span = (math.log1p(med.max()) - log_lo) or 1.0
-        tick_vals = [v for v in (0, 10, 50, 150, int(med.max())) if v <= med.max()]
-        legend["impact"] = {
-            "title": "Median citations per paper (log scale)",
-            "stops": [sample_colorscale("Turbo", i / 8)[0] for i in range(9)],
-            "ticks": [
-                [str(v), round((math.log1p(v) - log_lo) / log_span * 100)] for v in tick_vals
-            ],
-        }
 
     data_json = json.dumps(papers, ensure_ascii=False).replace("</", "<\\/")
     meta_json = json.dumps(meta, ensure_ascii=False).replace("</", "<\\/")

@@ -32,7 +32,7 @@ dist/
 *.swp
 .DS_Store
 
-# Data — all tiers are derived; regenerate with `make all`.
+# Data — all tiers are derived; regenerate with `make analysis`.
 data/
 data2/
 *.parquet

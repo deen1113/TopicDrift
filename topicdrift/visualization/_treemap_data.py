@@ -7,21 +7,17 @@ decade-level aggregates and growth metrics, and assembles the panel index
 """
 
 import math
-from collections import Counter
 
 import pandas as pd
 
 from topicdrift.constants import OUTLIER_TOPIC_ID
-from topicdrift.utils.text import clean_author
 from topicdrift.visualization._common import (
     INTERIM_DIR,
     PROCESSED_DIR,
     SCOPE_TITLES,
     load_conf_paper_topics,
-    load_topics,
     scope_filter,
     short_label,
-    topic_labels,
 )
 
 # Per-scope root-tile blurb shown when you click the root. ICSE keeps the
@@ -66,31 +62,6 @@ CONF_LIST_CAP = 200
 GROWTH_FLAT_PCT = 5.0
 
 
-def _authors_str(arr) -> str:
-    names = [clean_author(a) for a in (list(arr) if arr is not None else [])]
-    if not names:
-        return ""
-    if len(names) > 8:
-        return ", ".join(names[:8]) + f", … (+{len(names) - 8})"
-    return ", ".join(names)
-
-
-def _icse_titles() -> dict[int, dict[str, str]]:
-    """{topic_id: {'title', 'keywords'}} for the ICSE fit (llm_label + top words)."""
-    keywords = topic_labels()
-    topics = load_topics()
-    has_llm = "llm_label" in topics.columns
-    out: dict[int, dict[str, str]] = {}
-    for _, r in topics.iterrows():
-        tid = int(r["topic_id"])
-        if tid not in keywords:
-            continue
-        kw = keywords[tid]
-        llm = str(r["llm_label"]).strip() if has_llm and pd.notna(r["llm_label"]) else ""
-        out[tid] = {"title": llm or kw, "keywords": kw}
-    return out
-
-
 def _conf_titles() -> dict[int, dict[str, str]]:
     """{topic_id: {'title', 'keywords'}} for the global conf fit."""
     topics = pd.read_parquet(PROCESSED_DIR / "conf_topics.parquet")
@@ -118,7 +89,7 @@ def _topic_groups(scope: str) -> tuple[dict[int, str], dict[str, str]]:
 
 
 def scope_source(scope: str) -> dict:
-    """Bundle the per-paper table, titles, root label/blurb and has_cites flag."""
+    """Bundle the per-paper table, titles, root label and blurb for a scope."""
     root_label = SCOPE_TITLES.get(scope, scope)
     blurb = ROOT_BLURBS.get(scope, "")
     pt = scope_filter(load_conf_paper_topics(), scope)
@@ -129,7 +100,6 @@ def scope_source(scope: str) -> dict:
         "titles": _conf_titles(),
         "root_label": root_label,
         "blurb": blurb,
-        "has_cites": False,
     }
 
 
@@ -177,37 +147,12 @@ def _add_growth(agg):
     return agg
 
 
-def _stats(grp, has_cites) -> dict:
+def _stats(grp) -> dict:
     """Per topic×decade headline stats for the click panel."""
-    n = len(grp)
-    out = {"n": n, "ymin": int(grp["year"].min()), "ymax": int(grp["year"].max())}
-    if not has_cites:
-        return out
-    cites = grp["citation_count"].astype(int).tolist()
-    h = 0
-    for i, c in enumerate(cites, 1):
-        if c >= i:
-            h = i
-        else:
-            break
-    authors = Counter()
-    for arr in grp["authors"]:
-        for a in list(arr) if arr is not None else []:
-            authors[clean_author(a)] += 1
-    out.update(
-        {
-            "med": round(grp["citation_count"].median()),
-            "mean": round(grp["citation_count"].mean(), 1),
-            "tot": int(grp["citation_count"].sum()),
-            "h": h,
-            "uncpct": round(sum(c == 0 for c in cites) / n * 100),
-            "auth": authors.most_common(3),
-        }
-    )
-    return out
+    return {"n": len(grp), "ymin": int(grp["year"].min()), "ymax": int(grp["year"].max())}
 
 
-def _meta(agg, pt, has_cites, root_label, blurb) -> dict:
+def _meta(agg, pt, root_label, blurb) -> dict:
     """Descriptions for the structural tiles (root and each decade)."""
     corpus_total = int(agg["papers"].sum())
 
@@ -225,32 +170,6 @@ def _meta(agg, pt, has_cites, root_label, blurb) -> dict:
         "busiest_decade": agg.groupby("decade")["papers"].sum().idxmax(),
         "top_topics": [[r.topic, int(r.papers)] for r in by_topic.itertuples()],
     }
-    if has_cites:
-        by_cited = (
-            agg.groupby("topic", as_index=False)["total_citations"]
-            .sum()
-            .nlargest(1, "total_citations")
-        )
-        flag = pt.loc[pt["citation_count"].idxmax()]
-        root.update(
-            {
-                "total_citations": int(pt["citation_count"].sum()),
-                "median_citations": round(pt["citation_count"].median()),
-                "top_cited_topic": [
-                    by_cited.iloc[0]["topic"],
-                    int(by_cited.iloc[0]["total_citations"]),
-                ],
-                "flagship": {
-                    "t": flag["title"] or "(untitled)",
-                    "u": flag["paper_url"] or "",
-                    "a": _authors_str(flag["authors"]),
-                    "y": int(flag["year"]),
-                    "c": int(flag["citation_count"]),
-                },
-            }
-        )
-
-    dec_median = pt.groupby("decade")["citation_count"].median() if has_cites else None
 
     members = {
         d: dict(zip(s["topic_id"].astype(int), s["topic"])) for d, s in agg.groupby("decade")
@@ -274,7 +193,7 @@ def _meta(agg, pt, has_cites, root_label, blurb) -> dict:
         faded_ids = set(members.get(pdec, {})) - set(members.get(decade, {}))
         faded = sorted(faded_ids, key=lambda t: sizes.get((pdec, t), 0), reverse=True)[:6]
 
-        entry = {
+        decades[decade] = {
             "n_papers": total,
             "n_topics": int(len(sub)),
             "pct_corpus": round(total / corpus_total * 100, 1),
@@ -289,11 +208,6 @@ def _meta(agg, pt, has_cites, root_label, blurb) -> dict:
             if len(down)
             else None,
         }
-        if has_cites:
-            cited = sub.nlargest(3, "total_citations")
-            entry["median_cites"] = round(dec_median.get(decade, 0))
-            entry["top_cited"] = [[r.topic, int(r.total_citations)] for r in cited.itertuples()]
-        decades[decade] = entry
     return {"root": root, "decades": decades}
 
 
@@ -315,12 +229,12 @@ def _theme_meta(agg) -> dict:
 
 
 def build(scope: str):
-    """Return (tile aggregate, panel index, meta, group_colors, has_cites).
+    """Return (tile aggregate, panel index, meta, group_colors).
 
     panel index: {'<decade>||<topic_id>': {name, stats, rows}} for topic tiles.
     meta: {'root', 'decades', 'themes'} — the structural-tile descriptions."""
     src = scope_source(scope)
-    pt, titles, has_cites = src["pt"], src["titles"], src["has_cites"]
+    pt, titles = src["pt"], src["titles"]
     groups, group_colors = _topic_groups(scope)
     pt = pt[pt["topic_id"].isin(titles)].copy()
     pt["decade"] = (pt["year"] // 10 * 10).astype(int).astype(str) + "s"
@@ -328,16 +242,9 @@ def build(scope: str):
     pt["keywords"] = pt["topic_id"].map(lambda t: titles[t]["keywords"])
     pt["theme"] = pt["topic_id"].map(groups).fillna("Other")
 
-    agg_spec = {"papers": ("dblp_key", "size")}
-    if has_cites:
-        agg_spec.update(
-            mean_citations=("citation_count", "mean"),
-            median_citations=("citation_count", "median"),
-            total_citations=("citation_count", "sum"),
-        )
     agg = (
         pt.groupby(["decade", "theme", "topic_id", "topic", "keywords"])
-        .agg(**agg_spec)
+        .agg(papers=("dblp_key", "size"))
         .reset_index()
     )
     agg = _add_growth(agg)
@@ -351,28 +258,22 @@ def build(scope: str):
         for r in agg.itertuples()
     }
 
-    sort_col = "citation_count" if has_cites else "year"
     papers: dict[str, dict] = {}
-    for (decade, tid), grp in pt.sort_values(sort_col, ascending=False).groupby(
+    for (decade, tid), grp in pt.sort_values("year", ascending=False).groupby(
         ["decade", "topic_id"]
     ):
-        listed = grp if has_cites else grp.head(CONF_LIST_CAP)
-        rows = []
-        for r in listed.itertuples():
-            row = {"t": r.title or "(untitled)", "y": int(r.year)}
-            if has_cites:
-                row.update(a=_authors_str(r.authors), u=r.paper_url or "", c=int(r.citation_count))
-            rows.append(row)
+        listed = grp.head(CONF_LIST_CAP)
+        rows = [{"t": r.title or "(untitled)", "y": int(r.year)} for r in listed.itertuples()]
         entry = {
             "name": titles[tid]["title"],
             "kw": titles[tid]["keywords"],
-            "stats": _stats(grp, has_cites),
+            "stats": _stats(grp),
             "growth": growth.get((decade, int(tid))),
             "rows": rows,
         }
-        if not has_cites and len(grp) > CONF_LIST_CAP:
+        if len(grp) > CONF_LIST_CAP:
             entry["more"] = int(len(grp) - CONF_LIST_CAP)
         papers[f"{decade}||{tid}"] = entry
-    meta = _meta(agg, pt, has_cites, src["root_label"], src["blurb"])
+    meta = _meta(agg, pt, src["root_label"], src["blurb"])
     meta["themes"] = _theme_meta(agg)
-    return agg, papers, meta, group_colors, has_cites
+    return agg, papers, meta, group_colors

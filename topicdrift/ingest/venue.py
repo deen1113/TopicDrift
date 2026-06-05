@@ -4,8 +4,8 @@ venue.py — Slice the DBLP-wide dump down to one (or more) venues.
 Reads:  data/interim/dblp_conf.parquet     (from ingest_dblp_dump.py)
 Writes: data/interim/<venue>_dblp.parquet  (per venue)
 
-Replaces the old ingest.py + clean.py pair. There's no per-venue DBLP API fetch
-anymore — `make dump` (which produces dblp_conf.parquet) is a prerequisite.
+Slices the monolithic DBLP dump. `make dump` (which produces dblp_conf.parquet)
+is a prerequisite.
 
 By default a venue-agnostic main-track filter runs over the `booktitle` column
 (`is_main_track` in _filters), dropping companion volumes, workshop summaries,

@@ -4,9 +4,9 @@ enrich_openalex.py — Enrich the interim DBLP parquet with OpenAlex data.
 Two invocation modes
 --------------------
 Default (DOI pass only — fast, runs on any corpus size):
-    python src/ingest/enrich_openalex.py [venue ...]
+    make venue  (or: python -m topicdrift.ingest.enrich_openalex [venue ...])
 
-    Reads:  data/interim/<venue>_dblp.parquet      (from clean.py)
+    Reads:  data/interim/<venue>_dblp.parquet      (from venue.py via `make venue`)
     Writes: data/interim/<venue>_enriched.parquet
 
     Fetches DOI-matched works from OpenAlex in parallel batches.
@@ -15,7 +15,7 @@ Default (DOI pass only — fast, runs on any corpus size):
     data/interim/.
 
 Title pass (slow — one API call per DOI-less paper; not feasible at >100K papers):
-    python src/ingest/enrich_openalex.py --title-pass [venue ...]
+    make titles  (or: python -m topicdrift.ingest.enrich_openalex --title-pass [venue ...])
 
     Reads:  data/interim/<venue>_enriched.parquet  (must exist from DOI pass)
     Writes: data/interim/<venue>_enriched.parquet  (in-place, adds abstracts)
@@ -376,7 +376,7 @@ if __name__ == "__main__":
             venues = _all_venue_keys()
 
     if not venues:
-        raise SystemExit("No venues found. Run clean.py first.")
+        raise SystemExit("No venues found. Run `make venue` first.")
 
     if title_pass:
         for v in venues:

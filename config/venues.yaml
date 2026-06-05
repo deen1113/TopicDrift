@@ -8,7 +8,7 @@ icse:
 # ── Multi-conference topic architecture ───────────────────────────────────────
 # The website has three tabs, each a *venue filter* over ONE global topic space
 # fit from data/processed/conf_enriched.parquet. Editing the lists below is all
-# it takes to change what each tab shows (re-run `make corpus topics groups viz`).
+# it takes to change what each tab shows (re-run `make analysis`).
 #
 #   icse   — the ICSE tab (single venue)
 #   top10  — the curated "top 10 most prestigious" tab (edit freely)

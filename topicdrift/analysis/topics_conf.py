@@ -249,10 +249,7 @@ def run_assign_all() -> None:
     topics_df["size"] = topics_df["topic_id"].map(sizes).fillna(0).astype(int)
     topics_df.to_parquet(TOPICS_OUT, index=False)
     log.info("  assigned %d papers to %d topics (reused fit)", len(paper_topics), len(ids))
-    log.info(
-        "  next: `python src/analysis/apply_topic_groups.py --prefix conf_ "
-        "--config config/topic_groups.conf.yaml --title 'All Conferences'`"
-    )
+    log.info("  next: `make groups apply`")
 
 
 def main() -> None:

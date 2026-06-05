@@ -3,10 +3,13 @@ build_conf_corpus.py — Assemble the pooled multi-conference corpus offline.
 
 Reads:  data/interim/dblp_conf.parquet          (from ingest_dblp_dump.py)
         data/raw/openalex_scan/*.json             (from conf_abstract_report.py scan)
+        data/interim/*_enriched.parquet           (per-venue enriched files, optional fallback)
 Writes: data/interim/conf_enriched.parquet
 
 Joins every DBLP conference paper against the OpenAlex scan cache to recover
-abstracts. No network calls — all data is already local.
+abstracts, then falls back to any per-venue enriched parquets (e.g.
+icse_enriched.parquet built by `make venue-deep`) to fill gaps the scan missed
+(e.g. ACM-hosted papers with 10.5555 DOIs that OpenAlex doesn't index).
 
 Columns in output:
   conf, dblp_key, title, year, doi, abstract, has_abstract, text
@@ -76,6 +79,37 @@ def _build_doi_abstract_map() -> dict[str, str]:
     return out
 
 
+def _build_venue_abstract_map() -> dict[str, str]:
+    """Read per-venue enriched parquets; return dblp_key -> abstract for fallback."""
+    out: dict[str, str] = {}
+    paths = [
+        p
+        for p in INTERIM_DIR.glob("*_enriched.parquet")
+        if p.name != "conf_enriched.parquet" and not p.name.endswith(".old")
+    ]
+    if not paths:
+        return out
+    log.info("Loading per-venue fallback abstracts from %d file(s)...", len(paths))
+    for path in paths:
+        try:
+            venue_df = pd.read_parquet(path, columns=["dblp_key", "abstract"])
+        except Exception as e:
+            log.warning("  skipping %s: %s", path.name, e)
+            continue
+        n_before = len(out)
+        filled = venue_df.dropna(subset=["abstract"])
+        filled = filled[filled["abstract"].str.len() > 0]
+        new_entries = {
+            str(k): str(v)
+            for k, v in zip(filled["dblp_key"], filled["abstract"])
+            if k and str(k) not in out
+        }
+        out.update(new_entries)
+        log.info("  %s: +%d abstracts", path.name, len(out) - n_before)
+    log.info("  venue fallback total: %d dblp_keys with abstract", len(out))
+    return out
+
+
 def build() -> None:
     if not SRC.exists():
         raise SystemExit(f"Not found: {SRC}. Run `make dump` first.")
@@ -87,6 +121,18 @@ def build() -> None:
 
     doi_norm = df["doi"].map(normalize_doi)
     df["abstract"] = doi_norm.map(doi_abstract)
+
+    # Fallback: fill gaps from per-venue enriched parquets (e.g. ACM-scraped abstracts).
+    missing_mask = df["abstract"].isna()
+    n_missing_before = int(missing_mask.sum())
+    if n_missing_before:
+        venue_abstract = _build_venue_abstract_map()
+        if venue_abstract:
+            fallback = df.loc[missing_mask, "dblp_key"].map(venue_abstract)
+            df.loc[missing_mask, "abstract"] = fallback
+            n_recovered = int(df["abstract"].notna().sum()) - (len(df) - n_missing_before)
+            log.info("  venue fallback recovered %d abstracts", n_recovered)
+
     df["has_abstract"] = df["abstract"].fillna("").str.len() > 0
 
     # Fallback: fill abstracts the DOI scan missed from the per-venue silver

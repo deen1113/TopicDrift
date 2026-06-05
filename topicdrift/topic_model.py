@@ -2,8 +2,8 @@
 topic_model.py — Reusable BERTopic pipeline for ICSE topic-drift analysis.
 
 Wraps embed → UMAP → HDBSCAN → c-TF-IDF → outlier-reduce → duplicate-merge
-behind a class so the same machinery can drive the global fit (topics.py) and
-per-year fits (yearly_topics.py) without duplicating code.
+behind a class so the same machinery can drive the global fit (topics_conf.py)
+without duplicating code.
 """
 
 import logging
