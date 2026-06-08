@@ -37,26 +37,27 @@ Reads:  data/processed/icse_paper_topics.parquet, data/processed/icse_topics.par
 Writes: outputs/figures/researcher_migration_sankey.html
 """
 
+import json
 import logging
 from collections import Counter, defaultdict
 
 import numpy as np
-import plotly.express as px
+import pandas as pd
 import plotly.graph_objects as go
 
 from topicdrift.constants import OUTLIER_TOPIC_ID
 from topicdrift.visualization._common import (
+    PROCESSED_DIR,
     clean_author,
     load_paper_topics,
     load_topics,
     save,
-    topic_labels,
 )
 
 log = logging.getLogger(__name__)
 
 NAME = "researcher_migration_sankey"
-TOP_K = 12  # restrict to the K largest topics for legibility
+TOP_K = 10  # the 10 themes (all of them; kept as a guard if more are ever added)
 BUCKET = 5  # window width in years
 START = 1975  # start of the data (1976 falls in the 1975-1979 bucket)
 MIN_AUTHORS = 2  # a flow needs at least this many researchers to be drawn
@@ -82,8 +83,8 @@ def build():
             dominant topic in `bucket + BUCKET`.
     """
     pt = load_paper_topics()
-    labels = topic_labels()
     topics_tbl = load_topics()
+    labels = dict(zip(topics_tbl["topic_id"].astype(int), topics_tbl["label"].astype(str)))
 
     top_ids = [
         int(t)
@@ -131,9 +132,157 @@ def _ribbon(x0, y0, x1, y1, nseg=10):
     return x0 + (x1 - x0) * t, y0 + (y1 - y0) * s
 
 
+# JS injected after the plot: a clickable row of period chips under the timeline
+# and a panel that fills with that period's drift summary. {plot_id} is replaced
+# by Plotly; SUMMARIES/ORDER/CHIP are substituted below (braces only in the CSS,
+# which Plotly's literal {plot_id} replace leaves alone).
+_POST_SCRIPT = """
+var SUMMARIES = __SUMMARIES__, ORDER = __ORDER__, CHIP = __CHIP__;
+var gd = document.getElementById("{plot_id}");
+
+var style = document.createElement("style");
+style.textContent =
+  "#drift-periods{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:Inter,sans-serif;padding:8px 14px 2px;max-width:1100px;margin:0 auto}"
++ "#drift-periods .lbl{color:#8a8f98;font-size:12px;margin-right:4px}"
++ "#drift-periods button{background:#f3f4f7;border:1px solid #d7dae0;color:#3a3f4a;font-size:12px;padding:4px 9px;border-radius:6px;cursor:pointer;transition:background .12s}"
++ "#drift-periods button:hover{background:#e9ebef}"
++ "#drift-periods button.active{background:#2a3f5f;border-color:#2a3f5f;color:#fff;font-weight:600}"
++ "#drift-summary{font-family:Inter,sans-serif;max-width:1100px;margin:6px auto 22px;padding:0 16px;color:#222}"
++ "#drift-summary h3{color:#23272e;margin:.2em 0}#drift-summary ul{padding-left:20px;margin:.2em 0}#drift-summary li{margin:2px 0;color:#444}"
++ "body{transition:background .2s,color .2s}"
++ "body.dark{background:#1e1e1e;color:#e6e6e6}"
++ "body.dark #drift-periods .lbl{color:#9aa0a8}"
++ "body.dark #drift-periods button{background:#2a2a2a;border-color:#555;color:#e0e0e0}"
++ "body.dark #drift-periods button:hover{background:#3a3a3a}"
++ "body.dark #drift-periods button.active{background:#4a90d9;border-color:#4a90d9;color:#fff}"
++ "body.dark #drift-summary{color:#cfd3d9}"
++ "body.dark #drift-summary h3{color:#f0f0f0!important}"
++ "body.dark #drift-summary p,body.dark #drift-summary li,body.dark #drift-summary b{color:#c4c8d0!important}"
++ "#td-dm-wrap{color:#3a3f4a}body.dark #td-dm-wrap{color:#cfd3d9}";
+document.head.appendChild(style);
+
+var bar = document.createElement("div");
+bar.id = "drift-periods";
+bar.innerHTML = "<span class='lbl'>Researcher drift in a period:</span>";
+ORDER.forEach(function(b){
+  var btn = document.createElement("button");
+  btn.textContent = CHIP[b];
+  btn.onclick = function(){
+    document.getElementById("drift-summary").innerHTML = SUMMARIES[b] || "";
+    bar.querySelectorAll("button").forEach(function(x){ x.classList.remove("active"); });
+    btn.classList.add("active");
+  };
+  bar.appendChild(btn);
+});
+gd.parentNode.insertBefore(bar, gd.nextSibling);
+
+var panel = document.createElement("div");
+panel.id = "drift-summary";
+panel.innerHTML = "<p style='color:#777'>Click a period above to see who drifted where.</p>";
+gd.parentNode.insertBefore(panel, bar.nextSibling);
+
+// ── dark mode (toggle when standalone; obeys a parent page's td-dark message) ──
+function applyDark(on){
+  document.body.classList.toggle("dark", !!on);
+  Plotly.relayout(gd, on ? {
+    paper_bgcolor:"#1e1e1e", plot_bgcolor:"#1e1e1e", "font.color":"#e6e6e6",
+    "title.font.color":"#f0f0f0",
+    "updatemenus[0].bgcolor":"#2a2a2a", "updatemenus[0].bordercolor":"#555",
+    "updatemenus[0].font.color":"#e6e6e6", "sliders[0].bgcolor":"#3a3a3a"
+  } : {
+    paper_bgcolor:"white", plot_bgcolor:"white", "font.color":"#3a3f4a",
+    "title.font.color":"#23272e",
+    "updatemenus[0].bgcolor":"#f3f4f7", "updatemenus[0].bordercolor":"#d7dae0",
+    "updatemenus[0].font.color":"#3a3f4a", "sliders[0].bgcolor":"#dfe2e8"
+  });
+}
+if (window.self === window.top){            // standalone: toggle pinned under Play/Pause
+  var dm = document.createElement("div");
+  dm.id = "td-dm-wrap";
+  dm.style.cssText = "position:absolute;top:88px;right:38px;z-index:1000;font-family:Inter,sans-serif;font-size:12px;display:flex;align-items:center;gap:7px";
+  dm.innerHTML = "<span>Dark mode</span><label style='position:relative;display:inline-block;width:40px;height:21px'>"
+    + "<input type='checkbox' id='td-dm' style='opacity:0;width:0;height:0'>"
+    + "<span id='td-sw' style='position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:22px;transition:.2s'>"
+    + "<span id='td-knob' style='position:absolute;height:15px;width:15px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s'></span></span></label>";
+  gd.style.position = "relative";
+  gd.appendChild(dm);
+  document.getElementById("td-dm").addEventListener("change", function(e){
+    var on = e.target.checked;
+    applyDark(on);
+    document.getElementById("td-sw").style.background = on ? "#4a90d9" : "#ccc";
+    document.getElementById("td-knob").style.transform = on ? "translateX(19px)" : "";
+  });
+}
+window.addEventListener("message", function(ev){
+  if (ev.data && ev.data.type === "td-dark"){ applyDark(ev.data.on); }
+});
+"""
+
+
+def _period_summaries(transitions, flows, labels, color_of):
+    """Per-transition HTML drift summaries keyed by the start bucket (as a string),
+    plus the chip order and labels for the clickable period bar."""
+    def chip(tid):
+        return (f"<span style='color:{color_of.get(tid, '#888888')};font-weight:600'>"
+                f"{labels[tid]}</span>")
+
+    summaries, order, chip_labels = {}, [], {}
+    for b in transitions:
+        fl = flows[b]
+        total = sum(fl.values())
+        stayed = sum(v for (s, t), v in fl.items() if s == t)
+        migrated = total - stayed
+        moves = sorted(((s, t, v) for (s, t), v in fl.items() if s != t),
+                       key=lambda x: -x[2])[:6]
+
+        inflow, outflow, from_t, stay_t = (defaultdict(int) for _ in range(4))
+        for (s, t), v in fl.items():
+            from_t[s] += v
+            if s == t:
+                stay_t[s] += v
+            else:
+                outflow[s] += v
+                inflow[t] += v
+        net = {th: inflow[th] - outflow[th] for th in set(inflow) | set(outflow)}
+        gainers = [x for x in sorted(net.items(), key=lambda x: -x[1]) if x[1] > 0][:3]
+        losers = [x for x in sorted(net.items(), key=lambda x: x[1]) if x[1] < 0][:3]
+        loyal = {th: stay_t[th] / from_t[th] for th in from_t if from_t[th] >= 5}
+        most_loyal = max(loyal.items(), key=lambda x: x[1]) if loyal else None
+
+        def pct(n):
+            return f"{round(100 * n / total)}%" if total else "0%"
+
+        h = [f"<h3>{_win_label(b)} &#8594; {_win_label(b + BUCKET)}</h3>",
+             f"<p style='color:#555;margin:.2em 0 .8em'><b>{total}</b> researchers tracked"
+             f" · <b>{stayed}</b> stayed ({pct(stayed)})"
+             f" · <b>{migrated}</b> moved ({pct(migrated)})</p>"]
+        if moves:
+            items = "".join(f"<li>{v} · {chip(s)} <span style='color:#aaa'>&#8594;</span> "
+                            f"{chip(t)}</li>" for s, t, v in moves)
+            h.append(f"<p style='margin:.3em 0;color:#444'><b>Biggest moves</b></p>"
+                     f"<ul>{items}</ul>")
+        if gainers:
+            h.append("<p style='margin:.4em 0;color:#444'><b>Net gain:</b> "
+                     + ", ".join(f"{chip(th)} +{n}" for th, n in gainers) + "</p>")
+        if losers:
+            h.append("<p style='margin:.2em 0;color:#444'><b>Net loss:</b> "
+                     + ", ".join(f"{chip(th)} {n}" for th, n in losers) + "</p>")
+        if most_loyal:
+            h.append(f"<p style='margin:.4em 0;color:#444'><b>Most loyal:</b> "
+                     f"{chip(most_loyal[0])} ({round(100 * most_loyal[1])}% stayed)</p>")
+
+        key = str(b)
+        summaries[key] = "".join(h)
+        order.append(key)
+        chip_labels[key] = _win_label(b)
+    return summaries, order, chip_labels
+
+
 def plot(flows, buckets, top_ids, labels):
-    palette = px.colors.qualitative.Dark24
-    color_of = {tid: palette[i % len(palette)] for i, tid in enumerate(top_ids)}
+    # canonical theme colours (shared with the bump chart / treemap) keyed by name
+    ct = pd.read_parquet(PROCESSED_DIR / "conf_topics.parquet")
+    cmap = dict(zip(ct["group"].astype(str), ct["group_color"].astype(str)))
+    color_of = {tid: cmap.get(labels[tid], "#888888") for tid in top_ids}
     rank = {tid: i for i, tid in enumerate(top_ids)}
     n_topics = len(top_ids)
 
@@ -412,7 +561,7 @@ def plot(flows, buckets, top_ids, labels):
                 direction="left",
                 showactive=False,
                 x=1.0,
-                y=1.21,
+                y=1.11,
                 xanchor="right",
                 yanchor="top",
                 pad=dict(t=0, r=0),
@@ -454,7 +603,7 @@ def plot(flows, buckets, top_ids, labels):
         ],
         title=dict(
             text=(
-                "<b>How ICSE researchers migrate between topics</b>"
+                "<b>How ICSE researchers migrate between themes</b>"
                 "<br><span style='font-size:12.5px;color:#9098a3'>"
                 "drag to scroll, or press play · ribbon width = researchers · "
                 "grey = stayed, colour = migrated · newer themes lower</span>"
@@ -479,7 +628,14 @@ def plot(flows, buckets, top_ids, labels):
             font=dict(family=FONT, size=12, color="#2a2e36"),
         ),
     )
-    save(fig, NAME)
+    summaries, order, chip_labels = _period_summaries(transitions, flows, labels, color_of)
+    post = (
+        _POST_SCRIPT
+        .replace("__SUMMARIES__", json.dumps(summaries, ensure_ascii=False).replace("</", "<\\/"))
+        .replace("__ORDER__", json.dumps(order))
+        .replace("__CHIP__", json.dumps(chip_labels, ensure_ascii=False))
+    )
+    save(fig, NAME, post_script=post)
 
 
 def main():

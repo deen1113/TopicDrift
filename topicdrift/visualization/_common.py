@@ -17,6 +17,10 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
+# Re-exported so the author-level figures can keep importing it from _common,
+# while its definition lives in utils.text after the refactor.
+from topicdrift.utils.text import clean_author  # noqa: F401
+
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -75,8 +79,53 @@ def short_label(top_words, n: int = 3) -> str:
     return " · ".join(w for w in words[:n] if w)
 
 
-def save(fig, name: str) -> None:
-    """Write the interactive HTML for a figure (plotly.js via CDN)."""
+# ── ICSE single-fit loaders (icse_* tables) ────────────────────────────────────
+# Consumed by the ICSE-scope figures (the migration Sankey and the drift search).
+
+
+def load_topics() -> pd.DataFrame:
+    """Topic summaries: topic_id, size, label, top_words (top_words is a list)."""
+    return pd.read_parquet(PROCESSED_DIR / "icse_topics.parquet")
+
+
+def load_tot() -> pd.DataFrame:
+    """Time series: topic_id, top_words, freq, year_bucket, share."""
+    return pd.read_parquet(PROCESSED_DIR / "icse_topics_over_time.parquet")
+
+
+def topic_labels() -> dict[int, str]:
+    """{topic_id: 'word1 · word2 · word3'} for every non-outlier topic."""
+    topics = load_topics()
+    return {
+        int(r["topic_id"]): short_label(r["top_words"])
+        for _, r in topics.iterrows()
+        if int(r["topic_id"]) != -1
+    }
+
+
+def load_paper_topics() -> pd.DataFrame:
+    """Per-paper topic assignments joined to title + citation_count + authors.
+
+    Returns columns: dblp_key, year, topic_id, topic_probability, title,
+    citation_count (NaNs filled with 0), authors, year_bucket, paper_url.
+    paper_url prefers the publisher/DOI link (`ee`) and falls back to the
+    always-present DBLP record URL.
+    """
+    pt = pd.read_parquet(PROCESSED_DIR / "icse_paper_topics.parquet")
+    cols = ["dblp_key", "title", "citation_count", "authors", "url", "ee"]
+    en = pd.read_parquet(INTERIM_DIR / "icse_enriched.parquet")[cols]
+    m = pt.merge(en, on="dblp_key", how="left")
+    m["citation_count"] = m["citation_count"].fillna(0.0)
+    m["year_bucket"] = (m["year"] // BUCKET_YEARS) * BUCKET_YEARS
+    m["paper_url"] = m["ee"].fillna(m["url"])
+    return m
+
+
+def save(fig, name: str, post_script: str | None = None) -> None:
+    """Write the interactive HTML for a figure (plotly.js via CDN).
+
+    `post_script` is optional JS injected after the plot is drawn (Plotly fills in
+    `{plot_id}`), used by figures that add their own panels/controls."""
     dest = FIGURES_DIR / f"{name}.html"
-    fig.write_html(str(dest), include_plotlyjs="cdn")
+    fig.write_html(str(dest), include_plotlyjs="cdn", post_script=post_script)
     log.info("  wrote %s", dest)
