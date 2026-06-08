@@ -7,6 +7,7 @@ decade-level aggregates and growth metrics, and assembles the panel index
 """
 
 import math
+import re
 
 import pandas as pd
 
@@ -88,6 +89,54 @@ def _topic_groups(scope: str) -> tuple[dict[int, str], dict[str, str]]:
     return tg, gc
 
 
+# Trailing DBLP disambiguation suffix on a name, e.g. "Xu Liu 0001" → "Xu Liu".
+_DBLP_SUFFIX = re.compile(r"\s+\d{4}$")
+# Authors shown before collapsing the rest into "et al." (keeps the subline short).
+MAX_AUTHORS = 4
+
+
+def _format_authors(names) -> str:
+    """DBLP author array → display string, suffixes stripped, capped + 'et al.'."""
+    try:
+        seq = list(names) if names is not None else []
+    except TypeError:
+        return ""
+    clean = [_DBLP_SUFFIX.sub("", str(n)).strip() for n in seq if str(n).strip()]
+    if not clean:
+        return ""
+    if len(clean) > MAX_AUTHORS:
+        return ", ".join(clean[:MAX_AUTHORS]) + ", et al."
+    return ", ".join(clean)
+
+
+def _paper_links(keys: set[str]) -> pd.DataFrame:
+    """Per-paper external link + author line for the given papers, by dblp_key.
+
+    These fields (`ee`, `url`, `doi`, `authors`) live in the DBLP slice, not in
+    conf_enriched, so we read them here. The link prefers DBLP's `ee` (a
+    resolvable https link), falls back to a DOI URL, then the DBLP record page."""
+    src = pd.read_parquet(
+        INTERIM_DIR / "dblp_conf.parquet",
+        columns=["dblp_key", "ee", "url", "doi", "authors"],
+    )
+    src = src[src["dblp_key"].isin(keys)]
+    rows = []
+    for r in src.itertuples():
+        ee = r.ee.strip() if isinstance(r.ee, str) else ""
+        doi = r.doi.strip() if isinstance(r.doi, str) else ""
+        url = r.url.strip() if isinstance(r.url, str) else ""
+        if ee:
+            link = ee
+        elif doi:
+            link = "https://doi.org/" + doi
+        elif url:
+            link = url if url.startswith("http") else "https://dblp.org/" + url.lstrip("/")
+        else:
+            link = ""
+        rows.append((r.dblp_key, link, _format_authors(r.authors)))
+    return pd.DataFrame(rows, columns=["dblp_key", "ee", "authors_str"])
+
+
 def scope_source(scope: str) -> dict:
     """Bundle the per-paper table, titles, root label and blurb for a scope."""
     root_label = SCOPE_TITLES.get(scope, scope)
@@ -95,6 +144,10 @@ def scope_source(scope: str) -> dict:
     pt = scope_filter(load_conf_paper_topics(), scope)
     titles = pd.read_parquet(INTERIM_DIR / "conf_enriched.parquet", columns=["dblp_key", "title"])
     pt = pt.merge(titles, on="dblp_key", how="left")
+    # Attach the EE link (clickable title) + author subline for each paper. Only
+    # the rows that actually get listed (capped per topic×decade in build())
+    # reach the HTML, so the embedded JSON stays bounded.
+    pt = pt.merge(_paper_links(set(pt["dblp_key"])), on="dblp_key", how="left")
     return {
         "pt": pt,
         "titles": _conf_titles(),
@@ -263,7 +316,16 @@ def build(scope: str):
         ["decade", "topic_id"]
     ):
         listed = grp.head(CONF_LIST_CAP)
-        rows = [{"t": r.title or "(untitled)", "y": int(r.year)} for r in listed.itertuples()]
+        rows = []
+        for r in listed.itertuples():
+            row = {"t": r.title or "(untitled)", "y": int(r.year)}
+            ee = getattr(r, "ee", None)
+            if isinstance(ee, str) and ee:
+                row["u"] = ee  # renders as a clickable link in _treemap_layout
+            authors = getattr(r, "authors_str", None)
+            if isinstance(authors, str) and authors:
+                row["a"] = authors  # renders as an author subline in _treemap_layout
+            rows.append(row)
         entry = {
             "name": titles[tid]["title"],
             "kw": titles[tid]["keywords"],
