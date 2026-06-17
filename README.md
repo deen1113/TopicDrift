@@ -2,14 +2,26 @@
 
 How research themes evolve across long-running software-engineering conferences. Built on DBLP metadata enriched with OpenAlex abstracts and clustered with BERTopic.
 
+**Live results:** https://deen1113.github.io/TopicDrift/
+
+## Requirements & install
+
+Python **≥ 3.11** (set in `pyproject.toml`). For an exact, pinned environment:
+
 ```bash
-make install
-make help
+python -m pip install -r requirements.txt   # pinned deps (recommended to reproduce)
+python -m pip install -e .                   # then install this package
+make help                                    # full target list
 ```
+
+Or `make install` for the loose pins from `pyproject.toml`. A `uv.lock` is also committed if you use `uv`.
 
 ## Two workflows
 
 Pick one depending on what you want.
+
+- **Workflow A** — slice one or more venues to a human-readable preview CSV per venue.
+- **Workflow B** — fit the global topic model and render the per-scope theme figures.
 
 ### Shared data (one-time)
 
@@ -17,10 +29,14 @@ Both workflows read from the same on-disk caches. Build them once:
 
 ```bash
 make dump       # download + parse DBLP XML → dblp_conf.parquet (~30 min, ~1 GB)
-make scan       # dump + OpenAlex abstract scan + pooled corpus (~days, resumable)
+make scan       # dump + OpenAlex abstract scan + pooled corpus (slow, resumable)
 ```
 
 `scan` depends on `dump`, so a fresh checkout can go straight to `make scan` if you want both. Workflow A only needs `dump`; Workflow B needs `scan`.
+
+No data is committed to the repo (`data/` is gitignored), and no prebuilt snapshot is published — so reproduction is a full rebuild from source via the commands above. There is no fast path to skip it.
+
+**Why `scan` is slow:** it covers *all* of DBLP, and OpenAlex's free tier enforces a daily spend budget (~$1, resets midnight UTC), so a large scan can get throttled and may need more than one run to finish. It is fully resumable — just re-run `make scan` until it completes. The scan uses OpenAlex's polite pool via a `mailto` set in `topicdrift/utils/http.py`; change it to your own email before running.
 
 ### A. One or more venues → preview CSVs
 
@@ -29,7 +45,7 @@ Slice the DBLP dump down to one (or more) venues, enrich with OpenAlex, write a 
 ```bash
 make venue                                # default: VENUE=icse
 make venue VENUE="icse ase issta msr"     # any space-separated DBLP keys
-make venue-deep VENUE=icse                # adds slow title-pass + ACM DL scrape
+make venue-deep VENUE=icse                # adds slow title-pass + ACM DL scrape (needs ACM auth — see Data sources)
 make venue INCLUDE_COMPANION=1            # keep companion volumes + workshops
 ```
 
@@ -43,9 +59,9 @@ One global topic space fit on a stratified sample across every qualifying DBLP c
 
 ```bash
 make corpus     # stratified fit sample (fast, no API)
-make topics     # fit BERTopic on the sample
-make groups     # map topics → curated themes (edit config/topic_groups.conf.yaml)
-make apply
+make topics     # fit BERTopic + label topics with a local LLM (first run downloads ~6 GB from HuggingFace)
+make groups     # writes config/topic_groups.conf.proposed.yaml for review (the locked .yaml ships — no edit needed to reproduce)
+make apply      # stamps the locked grouping into the tables
 make figures    # writes one HTML per scope into outputs/figures/
 make site       # also copies the HTML into docs/visualizations/
 # or just:
