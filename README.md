@@ -36,6 +36,8 @@ make scan       # dump + OpenAlex abstract scan + pooled corpus (slow, resumable
 
 No data is committed to the repo (`data/` is gitignored), and no prebuilt snapshot is published — so reproduction is a full rebuild from source via the commands above. There is no fast path to skip it.
 
+**Snapshot:** once the pipeline has run, `make zenodo` packages the processed data + figures into a shareable archive (`dist/topicdrift-dataset.zip`).
+
 **Why `scan` is slow:** it covers *all* of DBLP, and OpenAlex's free tier enforces a daily spend budget (~$1, resets midnight UTC), so a large scan can get throttled and may need more than one run to finish. It is fully resumable — just re-run `make scan` until it completes. The scan uses OpenAlex's polite pool via a `mailto` set in `topicdrift/utils/http.py`; change it to your own email before running.
 
 ### A. One or more venues → preview CSVs
